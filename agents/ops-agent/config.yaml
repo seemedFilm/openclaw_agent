@@ -1,0 +1,166 @@
+# ============================================================================
+# Ops-Agent Konfiguration
+# ============================================================================
+# Purpose: Infrastructure Management und Traefik Operations
+# Model: Claude Sonnet 4.6 via LiteLLM/Bedrock
+# ============================================================================
+
+agent:
+  name: "ops-agent"
+  display_name: "Operations Agent"
+  description: "DevOps Engineer für Infrastructure, Traefik-Management und Deployments"
+  version: "1.0.0"
+  model: "claude-sonnet-4-6"
+  role: "devops-engineer"
+  expertise:
+    - "traefik-management"
+    - "ssl-certificates"
+    - "deployments"
+    - "monitoring"
+    - "log-analysis"
+    - "ansible-automation"
+
+provider:
+  type: "litellm"
+  base_url: "http://localhost:4000"
+  api_key: "bedrock"
+  aws_region: "eu-central-1"
+  model_id: "eu.anthropic.claude-sonnet-4-6"
+  max_tokens: 4096
+  temperature: 0.4
+
+skills:
+  - name: "traefik-management"
+    enabled: true
+    priority: "high"
+    config:
+      remote_host: "192.168.1.23"
+      ssh_user: "root"
+      config_path: "/docker/volume/traefik/config"
+      container_name: "traefik"
+      operations:
+        - "add_route"
+        - "update_route"
+        - "delete_route"
+        - "add_middleware"
+        - "update_ssl"
+
+  - name: "cert-renewal"
+    enabled: true
+    priority: "high"
+    config:
+      provider: "letsencrypt"
+      email: "ops@example.com"
+      renew_days_before: 30
+
+  - name: "deployment"
+    enabled: true
+    priority: "high"
+    config:
+      strategy: "blue-green"  # or rolling, canary
+      health_check: true
+      rollback_on_failure: true
+
+  - name: "monitoring"
+    enabled: true
+    priority: "medium"
+    config:
+      prometheus_endpoint: "http://localhost:9090"
+      alert_on:
+        - "high_cpu"
+        - "high_memory"
+        - "disk_full"
+        - "service_down"
+
+  - name: "log-analysis"
+    enabled: true
+    priority: "medium"
+    config:
+      sources:
+        - "/var/log/traefik/access.log"
+        - "/var/log/traefik/error.log"
+        - "/opt/openclaw/logs/*.log"
+
+  - name: "ansible-automation"
+    enabled: true
+    priority: "medium"
+    config:
+      playbooks_path: "/opt/openclaw/agents/ops-agent/playbooks"
+
+memory:
+  persistent: true
+  scope: "infrastructure"
+  retention_days: 365  # 1 Jahr für Operations-History
+
+triggers:
+  - event: "cert_expiring"
+    action: "renew_certificate"
+    enabled: true
+    config:
+      days_before: 30
+
+  - event: "service_down"
+    action: "investigate_and_restart"
+    enabled: true
+
+  - event: "high_cpu"
+    action: "analyze_performance"
+    enabled: true
+    config:
+      threshold: 80
+
+  - event: "disk_full"
+    action: "cleanup_logs"
+    enabled: true
+    config:
+      threshold: 90
+
+  - event: "deployment_ready"
+    action: "deploy"
+    enabled: true
+
+  - event: "scheduled"
+    action: "health_check_all"
+    enabled: true
+    config:
+      cron: "*/30 * * * *"  # Alle 30 Minuten
+
+tools:
+  - name: "ansible"
+    enabled: true
+  - name: "ssh"
+    enabled: true
+  - name: "docker"
+    enabled: true
+    config:
+      remote_host: "192.168.1.23"
+  - name: "certbot"
+    enabled: true
+  - name: "traefik-cli"
+    enabled: true
+
+traefik:
+  remote_host: "192.168.1.23"
+  ssh_port: 22
+  ssh_user: "root"
+  config_path: "/docker/volume/traefik/config"
+  container_name: "traefik"
+  is_docker: true
+  dashboard_url: "http://192.168.1.23:8080/dashboard/"
+
+monitoring:
+  metrics:
+    enabled: true
+    endpoint: "http://localhost:9090/metrics"
+  logging:
+    level: "INFO"
+    format: "json"
+    output: "/opt/openclaw/logs/ops-agent.log"
+
+integrations:
+  - agent: "security-agent"
+    enabled: true
+    events: ["deployment_ready"]
+  - agent: "dev-agent"
+    enabled: true
+    events: ["deployment_complete"]

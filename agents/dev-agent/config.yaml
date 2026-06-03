@@ -1,0 +1,404 @@
+# ============================================================================
+# Dev-Agent Konfiguration
+# ============================================================================
+# Purpose: Code-Entwicklung mit Claude Code Integration
+# Model: Claude Sonnet 4.6 via LiteLLM/Bedrock
+# ============================================================================
+
+agent:
+  name: "dev-agent"
+  display_name: "Development Agent"
+  description: "Senior Software Engineer für Code-Entwicklung, Debugging und Refactoring mit Claude Code Integration"
+  version: "1.0.0"
+
+  # Claude Model via LiteLLM Proxy
+  model: "claude-sonnet-4-6"
+
+  # Agent-Rolle und Expertise
+  role: "senior-software-engineer"
+  expertise:
+    - "code-development"
+    - "debugging"
+    - "refactoring"
+    - "git-operations"
+    - "claude-code-integration"
+    - "test-driven-development"
+
+# ============================================================================
+# Provider Configuration (LiteLLM Proxy)
+# ============================================================================
+
+provider:
+  type: "litellm"
+  base_url: "http://localhost:4000"
+  api_key: "bedrock"
+
+  # Bedrock-spezifische Settings
+  aws_region: "eu-central-1"
+  model_id: "eu.anthropic.claude-sonnet-4-6"
+
+  # Token Limits
+  max_tokens: 4096
+  temperature: 0.7
+
+  # Retry Strategy
+  retry:
+    max_attempts: 3
+    backoff_multiplier: 2
+    initial_delay: 1
+
+# ============================================================================
+# Skills & Capabilities
+# ============================================================================
+
+skills:
+  # Core Development Skills
+  - name: "code-generation"
+    enabled: true
+    description: "Generate new code based on specifications"
+    priority: "high"
+
+  - name: "code-refactoring"
+    enabled: true
+    description: "Refactor existing code for better quality"
+    priority: "high"
+
+  - name: "debugging"
+    enabled: true
+    description: "Debug and fix code issues"
+    priority: "high"
+
+  # Git Operations
+  - name: "git-operations"
+    enabled: true
+    description: "Git workflow automation (commit, push, branch, merge)"
+    priority: "high"
+    config:
+      commit_message_format: "conventional-commits"
+      auto_commit: false
+      auto_push: false
+
+  # File Management
+  - name: "file-management"
+    enabled: true
+    description: "Create, read, update, delete files"
+    priority: "medium"
+
+  # Claude Code Integration
+  - name: "claude-code-integration"
+    enabled: true
+    description: "Integration mit Claude Code CLI"
+    priority: "high"
+    config:
+      claude_code_path: "/usr/local/bin/openclaw"
+
+  # Testing
+  - name: "test-generation"
+    enabled: true
+    description: "Generate unit and integration tests"
+    priority: "medium"
+
+  # Documentation
+  - name: "documentation"
+    enabled: true
+    description: "Generate and update code documentation"
+    priority: "low"
+
+# ============================================================================
+# Memory & Context
+# ============================================================================
+
+memory:
+  # Persistent memory across sessions
+  persistent: true
+
+  # Memory scope
+  scope: "project"
+
+  # Memory retention
+  retention_days: 30
+
+  # Context window management
+  context:
+    max_tokens: 100000
+    summarization_threshold: 80000
+
+  # Shared memory with other agents
+  shared:
+    enabled: true
+    agents:
+      - "review-agent"
+      - "security-agent"
+
+# ============================================================================
+# Event Triggers
+# ============================================================================
+
+triggers:
+  # File Change Trigger
+  - event: "file_changed"
+    action: "analyze_changes"
+    enabled: true
+    config:
+      watch_patterns:
+        - "src/**/*.js"
+        - "src/**/*.ts"
+        - "src/**/*.py"
+        - "src/**/*.go"
+        - "src/**/*.rs"
+      ignore_patterns:
+        - "node_modules/**"
+        - "dist/**"
+        - "build/**"
+        - "*.test.*"
+
+  # Pull Request Trigger
+  - event: "pr_opened"
+    action: "review_pr"
+    enabled: true
+    config:
+      auto_assign_self: false
+      notify_review_agent: true
+
+  # Issue Assignment Trigger
+  - event: "issue_assigned"
+    action: "analyze_issue"
+    enabled: true
+    config:
+      labels_to_watch:
+        - "bug"
+        - "feature"
+        - "enhancement"
+
+  # Branch Creation Trigger
+  - event: "branch_created"
+    action: "setup_workspace"
+    enabled: true
+
+  # Scheduled Trigger
+  - event: "scheduled"
+    action: "code_quality_check"
+    enabled: true
+    config:
+      cron: "0 2 * * *"  # 02:00 Uhr täglich
+
+# ============================================================================
+# Tools & Access
+# ============================================================================
+
+tools:
+  # Git Tools
+  - name: "git"
+    enabled: true
+    version: "latest"
+
+  # Language Servers
+  - name: "typescript-language-server"
+    enabled: true
+    config:
+      tsconfig_path: "./tsconfig.json"
+
+  - name: "pylsp"
+    enabled: true
+    config:
+      plugins:
+        pylint: true
+        pyflakes: true
+
+  - name: "gopls"
+    enabled: true
+
+  # Linters & Formatters
+  - name: "eslint"
+    enabled: true
+    config:
+      config_path: "./.eslintrc.js"
+
+  - name: "prettier"
+    enabled: true
+    config:
+      config_path: "./.prettierrc"
+
+  - name: "black"
+    enabled: true
+
+  # Testing Frameworks
+  - name: "jest"
+    enabled: true
+
+  - name: "pytest"
+    enabled: true
+
+  # Build Tools
+  - name: "npm"
+    enabled: true
+
+  - name: "pip"
+    enabled: true
+
+  - name: "cargo"
+    enabled: true
+
+# ============================================================================
+# Permissions & Security
+# ============================================================================
+
+permissions:
+  # File System Access
+  filesystem:
+    read: true
+    write: true
+    delete: false  # Require explicit confirmation
+
+  # Network Access
+  network:
+    allowed_hosts:
+      - "github.com"
+      - "api.github.com"
+      - "registry.npmjs.org"
+      - "pypi.org"
+
+  # Command Execution
+  commands:
+    allowed:
+      - "git"
+      - "npm"
+      - "pip"
+      - "node"
+      - "python"
+      - "go"
+      - "cargo"
+    forbidden:
+      - "rm -rf"
+      - "sudo"
+      - "chmod 777"
+
+# ============================================================================
+# Response Format & Behavior
+# ============================================================================
+
+behavior:
+  # Response Format
+  response_format:
+    code_blocks: true
+    explanations: true
+    commit_messages: true
+
+  # Code Style
+  code_style:
+    preferred_language: "typescript"
+    naming_convention: "camelCase"
+    max_line_length: 100
+
+  # Commit Messages (Conventional Commits)
+  commit_format:
+    style: "conventional-commits"
+    prefix: "[dev-agent]"
+    types:
+      - "feat"
+      - "fix"
+      - "refactor"
+      - "test"
+      - "docs"
+      - "chore"
+
+  # Interaction Style
+  interaction:
+    verbosity: "balanced"  # terse, balanced, verbose
+    code_first: true  # Show code before explanation
+    ask_before_destructive: true
+
+# ============================================================================
+# Integration mit anderen Agents
+# ============================================================================
+
+integrations:
+  # Review-Agent
+  - agent: "review-agent"
+    enabled: true
+    events:
+      - "pr_created"
+      - "code_committed"
+    actions:
+      - "request_review"
+
+  # Security-Agent
+  - agent: "security-agent"
+    enabled: true
+    events:
+      - "dependency_added"
+      - "config_changed"
+    actions:
+      - "security_scan"
+
+  # Ops-Agent
+  - agent: "ops-agent"
+    enabled: false
+    events:
+      - "deployment_ready"
+
+# ============================================================================
+# Monitoring & Logging
+# ============================================================================
+
+monitoring:
+  # Metrics
+  metrics:
+    enabled: true
+    endpoint: "http://localhost:9090/metrics"
+
+  # Logging
+  logging:
+    level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    format: "json"
+    output: "/opt/openclaw/logs/dev-agent.log"
+    rotation:
+      max_size: "100MB"
+      max_files: 10
+
+  # Performance Tracking
+  performance:
+    track_token_usage: true
+    track_response_time: true
+    track_success_rate: true
+
+# ============================================================================
+# Error Handling
+# ============================================================================
+
+error_handling:
+  # Retry Strategy
+  retry:
+    enabled: true
+    max_attempts: 3
+    backoff: "exponential"
+
+  # Fallback Behavior
+  fallback:
+    on_model_error: "notify_user"
+    on_tool_error: "continue_without_tool"
+    on_permission_denied: "ask_user"
+
+  # Notifications
+  notifications:
+    on_critical_error: true
+    channels:
+      - "log"
+      - "console"
+
+# ============================================================================
+# Development & Testing
+# ============================================================================
+
+development:
+  # Debug Mode
+  debug_mode: false
+
+  # Test Mode
+  test_mode: false
+
+  # Dry Run (no actual changes)
+  dry_run: false
+
+  # Verbose Output
+  verbose: false

@@ -1,0 +1,134 @@
+# ============================================================================
+# Security-Agent Konfiguration
+# ============================================================================
+# Purpose: Security Scanning und Vulnerability Analysis
+# Model: Claude Sonnet 4.6 via LiteLLM/Bedrock
+# ============================================================================
+
+agent:
+  name: "security-agent"
+  display_name: "Security Agent"
+  description: "Security Engineer für Vulnerability Scanning, Compliance-Checks und Threat Analysis"
+  version: "1.0.0"
+  model: "claude-sonnet-4-6"
+  role: "security-engineer"
+  expertise:
+    - "vulnerability-scanning"
+    - "dependency-analysis"
+    - "secrets-detection"
+    - "sast-analysis"
+    - "compliance-checks"
+    - "threat-modeling"
+
+provider:
+  type: "litellm"
+  base_url: "http://localhost:4000"
+  api_key: "bedrock"
+  aws_region: "eu-central-1"
+  model_id: "eu.anthropic.claude-sonnet-4-6"
+  max_tokens: 4096
+  temperature: 0.2
+
+skills:
+  - name: "dependency-scan"
+    enabled: true
+    priority: "high"
+    config:
+      tools: ["npm-audit", "snyk", "trivy"]
+      fail_on_critical: true
+      fail_on_high: false
+
+  - name: "secrets-detection"
+    enabled: true
+    priority: "high"
+    config:
+      scan_git_history: true
+      patterns:
+        - "api[_-]?key"
+        - "password"
+        - "secret"
+        - "token"
+        - "private[_-]?key"
+
+  - name: "sast-analysis"
+    enabled: true
+    priority: "high"
+    config:
+      check_sql_injection: true
+      check_xss: true
+      check_command_injection: true
+      check_path_traversal: true
+
+  - name: "config-audit"
+    enabled: true
+    priority: "medium"
+    config:
+      tools: ["lynis", "trivy"]
+      check_docker: true
+      check_kubernetes: false
+
+  - name: "compliance-check"
+    enabled: true
+    priority: "medium"
+    config:
+      standards: ["OWASP-Top-10", "CWE-Top-25"]
+
+memory:
+  persistent: true
+  scope: "project"
+  retention_days: 180  # 6 Monate für Security-History
+
+triggers:
+  - event: "dependency_updated"
+    action: "scan_dependencies"
+    enabled: true
+
+  - event: "pr_opened"
+    action: "security_scan"
+    enabled: true
+
+  - event: "config_changed"
+    action: "audit_config"
+    enabled: true
+
+  - event: "scheduled"
+    action: "full_security_scan"
+    enabled: true
+    config:
+      cron: "0 3 * * *"  # 03:00 täglich
+
+tools:
+  - name: "trivy"
+    enabled: true
+  - name: "snyk"
+    enabled: true
+  - name: "npm-audit"
+    enabled: true
+  - name: "lynis"
+    enabled: true
+  - name: "gitleaks"
+    enabled: true
+
+security_policies:
+  severity_levels:
+    CRITICAL: { fail: true, notify: true }
+    HIGH: { fail: false, notify: true }
+    MEDIUM: { fail: false, notify: false }
+    LOW: { fail: false, notify: false }
+
+monitoring:
+  metrics:
+    enabled: true
+    endpoint: "http://localhost:9090/metrics"
+  logging:
+    level: "INFO"
+    format: "json"
+    output: "/opt/openclaw/logs/security-agent.log"
+
+integrations:
+  - agent: "review-agent"
+    enabled: true
+    events: ["pr_opened"]
+  - agent: "ops-agent"
+    enabled: true
+    events: ["deployment_ready"]

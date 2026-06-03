@@ -1,0 +1,483 @@
+# ============================================================================
+# Review-Agent Konfiguration
+# ============================================================================
+# Purpose: Pull Request Review und Code-Qualität
+# Model: Claude Sonnet 4.6 via LiteLLM/Bedrock
+# ============================================================================
+
+agent:
+  name: "review-agent"
+  display_name: "Code Review Agent"
+  description: "Senior Code Reviewer für PR-Analyse, Code-Qualität und Best-Practices-Checks"
+  version: "1.0.0"
+
+  # Claude Model via LiteLLM Proxy
+  model: "claude-sonnet-4-6"
+
+  # Agent-Rolle und Expertise
+  role: "senior-code-reviewer"
+  expertise:
+    - "code-review"
+    - "quality-assurance"
+    - "best-practices"
+    - "security-review"
+    - "test-coverage-analysis"
+    - "changelog-generation"
+
+# ============================================================================
+# Provider Configuration (LiteLLM Proxy)
+# ============================================================================
+
+provider:
+  type: "litellm"
+  base_url: "http://localhost:4000"
+  api_key: "bedrock"
+
+  # Bedrock-spezifische Settings
+  aws_region: "eu-central-1"
+  model_id: "eu.anthropic.claude-sonnet-4-6"
+
+  # Token Limits
+  max_tokens: 4096
+  temperature: 0.3  # Niedrigere Temperatur für konsistente Reviews
+
+  # Retry Strategy
+  retry:
+    max_attempts: 3
+    backoff_multiplier: 2
+    initial_delay: 1
+
+# ============================================================================
+# Skills & Capabilities
+# ============================================================================
+
+skills:
+  # Core Review Skills
+  - name: "pr-analysis"
+    enabled: true
+    description: "Analyze pull requests for quality and best practices"
+    priority: "high"
+    config:
+      check_commit_messages: true
+      check_branch_naming: true
+      check_pr_description: true
+
+  - name: "code-quality-check"
+    enabled: true
+    description: "Check code quality metrics"
+    priority: "high"
+    config:
+      check_complexity: true
+      check_duplication: true
+      check_naming_conventions: true
+      max_function_lines: 50
+      max_file_lines: 500
+
+  - name: "security-review"
+    enabled: true
+    description: "Security-focused code review"
+    priority: "high"
+    config:
+      check_sql_injection: true
+      check_xss: true
+      check_auth_issues: true
+      check_secrets: true
+
+  - name: "test-coverage-analysis"
+    enabled: true
+    description: "Analyze test coverage"
+    priority: "high"
+    config:
+      minimum_coverage: 80
+      require_new_tests: true
+
+  - name: "changelog-generation"
+    enabled: true
+    description: "Generate changelog entries from PRs"
+    priority: "medium"
+    config:
+      format: "keep-a-changelog"
+      group_by_type: true
+
+  - name: "dependency-review"
+    enabled: true
+    description: "Review dependency changes"
+    priority: "medium"
+    config:
+      check_licenses: true
+      check_vulnerabilities: true
+      notify_security_agent: true
+
+  - name: "documentation-check"
+    enabled: true
+    description: "Check documentation completeness"
+    priority: "low"
+    config:
+      require_api_docs: true
+      require_readme_update: true
+
+# ============================================================================
+# Review Rules
+# ============================================================================
+
+review_rules:
+  # Code Quality Rules
+  code_quality:
+    max_function_complexity: 10
+    max_function_lines: 50
+    max_file_lines: 500
+    max_parameters: 5
+    require_type_hints: true
+    require_error_handling: true
+
+  # Naming Conventions
+  naming:
+    functions: "camelCase"  # or snake_case, PascalCase
+    classes: "PascalCase"
+    constants: "UPPER_SNAKE_CASE"
+    files: "kebab-case"
+
+  # Testing Rules
+  testing:
+    minimum_coverage: 80
+    require_unit_tests: true
+    require_integration_tests: false
+    require_e2e_tests: false
+
+  # Documentation Rules
+  documentation:
+    require_function_docs: true
+    require_class_docs: true
+    require_api_docs: true
+    require_readme: true
+
+  # Security Rules
+  security:
+    no_hardcoded_secrets: true
+    no_sql_injection: true
+    no_xss_vulnerabilities: true
+    require_input_validation: true
+    require_auth_checks: true
+
+# ============================================================================
+# Auto-Approval Criteria
+# ============================================================================
+
+auto_approval:
+  enabled: true
+
+  # Kriterien für Auto-Approval
+  criteria:
+    # Dateityp-basiert
+    file_types:
+      - "*.md"      # Dokumentation
+      - "*.txt"     # Text-Dateien
+      - ".gitignore"
+      - "LICENSE"
+
+    # Änderungsumfang
+    max_lines_changed: 10
+    max_files_changed: 3
+
+    # Tests müssen vorhanden sein
+    requires_tests: false  # Für triviale Änderungen
+
+    # Test-Coverage darf nicht sinken
+    coverage_must_not_decrease: true
+
+    # Keine Breaking Changes
+    no_breaking_changes: true
+
+    # Labels
+    labels:
+      - "documentation"
+      - "dependencies"
+      - "trivial"
+
+  # Ausschluss-Kriterien (Auto-Approval NICHT erlaubt)
+  exclude:
+    file_patterns:
+      - "src/auth/**"           # Authentication code
+      - "src/security/**"       # Security-critical code
+      - "**/migrations/**"      # Database migrations
+      - "Dockerfile"            # Infrastructure
+      - "*.sql"                 # SQL files
+
+    labels:
+      - "security"
+      - "breaking-change"
+      - "needs-discussion"
+
+# ============================================================================
+# Memory & Context
+# ============================================================================
+
+memory:
+  # Persistent memory across sessions
+  persistent: true
+
+  # Memory scope
+  scope: "project"
+
+  # Memory retention
+  retention_days: 90  # Länger als Dev-Agent (Code-Historie)
+
+  # Context window management
+  context:
+    max_tokens: 100000
+    summarization_threshold: 80000
+
+  # Shared memory with other agents
+  shared:
+    enabled: true
+    agents:
+      - "dev-agent"
+      - "security-agent"
+
+# ============================================================================
+# Event Triggers
+# ============================================================================
+
+triggers:
+  # Pull Request Events
+  - event: "pr_opened"
+    action: "review_pr"
+    enabled: true
+    config:
+      auto_assign_self: true
+      run_checks: true
+
+  - event: "pr_updated"
+    action: "review_changes"
+    enabled: true
+    config:
+      review_only_new_commits: true
+
+  - event: "review_requested"
+    action: "review_pr"
+    enabled: true
+
+  - event: "pr_ready_for_review"
+    action: "review_pr"
+    enabled: true
+
+  # Code Events
+  - event: "code_committed"
+    action: "analyze_commit"
+    enabled: true
+    config:
+      check_commit_message: true
+      check_code_quality: true
+
+  # Scheduled Review
+  - event: "scheduled"
+    action: "review_open_prs"
+    enabled: true
+    config:
+      cron: "0 9 * * *"  # 09:00 Uhr täglich
+      priority_labels:
+        - "urgent"
+        - "high-priority"
+
+# ============================================================================
+# Tools & Access
+# ============================================================================
+
+tools:
+  # GitHub CLI
+  - name: "gh"
+    enabled: true
+    config:
+      token: "${GITHUB_TOKEN}"
+
+  # Diff Tools
+  - name: "diff"
+    enabled: true
+
+  - name: "git-diff"
+    enabled: true
+
+  # Code Quality Tools
+  - name: "eslint"
+    enabled: true
+    config:
+      config_path: "./.eslintrc.js"
+
+  - name: "pylint"
+    enabled: true
+
+  - name: "golangci-lint"
+    enabled: true
+
+  # Test Coverage Tools
+  - name: "jest"
+    enabled: true
+    config:
+      coverage: true
+
+  - name: "pytest"
+    enabled: true
+    config:
+      coverage: true
+
+  - name: "go-cover"
+    enabled: true
+
+  # Static Analysis
+  - name: "sonarqube"
+    enabled: false
+    config:
+      url: "http://localhost:9000"
+
+# ============================================================================
+# Permissions & Security
+# ============================================================================
+
+permissions:
+  # File System Access
+  filesystem:
+    read: true
+    write: false  # Review-Agent schreibt nicht direkt
+    delete: false
+
+  # Network Access
+  network:
+    allowed_hosts:
+      - "api.github.com"
+      - "github.com"
+
+  # GitHub Permissions
+  github:
+    can_approve: true
+    can_request_changes: true
+    can_comment: true
+    can_merge: false  # Kein Auto-Merge
+
+# ============================================================================
+# Response Format & Behavior
+# ============================================================================
+
+behavior:
+  # Review Format
+  review_format:
+    style: "constructive"  # constructive, strict, lenient
+    include_suggestions: true
+    include_examples: true
+    include_references: true
+
+  # Comment Format
+  comments:
+    prefix: "[review-agent]"
+    use_suggestions: true  # GitHub Suggestions feature
+    group_by_file: true
+
+  # Interaction Style
+  interaction:
+    verbosity: "balanced"
+    be_constructive: true
+    explain_reasoning: true
+    suggest_alternatives: true
+
+  # Approval Behavior
+  approval:
+    require_all_checks: true
+    require_tests: true
+    require_coverage: true
+    auto_approve_trivial: true
+
+# ============================================================================
+# Integration mit anderen Agents
+# ============================================================================
+
+integrations:
+  # Dev-Agent
+  - agent: "dev-agent"
+    enabled: true
+    events:
+      - "code_committed"
+    actions:
+      - "review_commit"
+
+  # Security-Agent
+  - agent: "security-agent"
+    enabled: true
+    events:
+      - "pr_opened"
+      - "dependency_changed"
+    actions:
+      - "security_scan"
+
+  # Ops-Agent
+  - agent: "ops-agent"
+    enabled: false
+
+# ============================================================================
+# Monitoring & Logging
+# ============================================================================
+
+monitoring:
+  # Metrics
+  metrics:
+    enabled: true
+    endpoint: "http://localhost:9090/metrics"
+    track:
+      - "reviews_completed"
+      - "approvals_given"
+      - "changes_requested"
+      - "comments_posted"
+
+  # Logging
+  logging:
+    level: "INFO"
+    format: "json"
+    output: "/opt/openclaw/logs/review-agent.log"
+    rotation:
+      max_size: "100MB"
+      max_files: 10
+
+  # Performance Tracking
+  performance:
+    track_review_time: true
+    track_response_time: true
+    track_success_rate: true
+
+# ============================================================================
+# Error Handling
+# ============================================================================
+
+error_handling:
+  # Retry Strategy
+  retry:
+    enabled: true
+    max_attempts: 3
+    backoff: "exponential"
+
+  # Fallback Behavior
+  fallback:
+    on_model_error: "notify_user"
+    on_github_error: "retry_later"
+    on_tool_error: "continue_without_tool"
+
+  # Notifications
+  notifications:
+    on_critical_error: true
+    channels:
+      - "log"
+      - "github_comment"
+
+# ============================================================================
+# Development & Testing
+# ============================================================================
+
+development:
+  # Debug Mode
+  debug_mode: false
+
+  # Test Mode
+  test_mode: false
+
+  # Dry Run (no actual comments/approvals)
+  dry_run: false
+
+  # Verbose Output
+  verbose: false
