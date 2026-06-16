@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Fehler - Cert-Manager{% endblock %}
+
+{% block content %}
+<div class="error-page">
+    <h2>❌ Fehler</h2>
+
+    <div class="alert alert-danger">
+        <p><strong>Es ist ein Fehler aufgetreten:</strong></p>
+        <p>{{ error }}</p>
+    </div>
+
+    <div class="form-actions">
+        <a href="/" class="btn btn-primary">🏠 Zum Dashboard</a>
+        <a href="javascript:history.back()" class="btn btn-secondary">← Zurück</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+# Cert-Manager Python Dependencies
+# Diese werden automatisch vom deploy.sh Script im venv installiert
+
+fastapi>=0.109.0
+uvicorn>=0.27.0
+pydantic>=2.6.0
+sqlalchemy>=2.0.25
+python-jose>=3.3.0
+cryptography>=42.0.0
+paramiko>=3.4.0
+flask>=3.0.0
+pyyaml>=6.0.1

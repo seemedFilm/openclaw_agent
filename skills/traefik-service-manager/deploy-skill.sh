@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# ============================================================================
+# Deploy Traefik Service Manager Skill zum OpenClaw Container
+# ============================================================================
+
+set -euo pipefail
+
+# Konfiguration
+OPENCLAW_HOST="${1:-192.168.1.11}"
+OPENCLAW_USER="root"
+SKILL_NAME="traefik-service-manager"
+LOCAL_SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REMOTE_SKILL_DIR="/opt/openclaw/skills/${SKILL_NAME}"
+
+echo "=== Deploy Traefik Service Manager Skill ==="
+echo
+echo "Ziel: ${OPENCLAW_USER}@${OPENCLAW_HOST}:${REMOTE_SKILL_DIR}"
+echo
+
+# Prüfe SSH-Verbindung
+echo "Prüfe SSH-Verbindung..."
+if ! ssh -o ConnectTimeout=5 "${OPENCLAW_USER}@${OPENCLAW_HOST}" "true" 2>/dev/null; then
+    echo "ERROR: Keine SSH-Verbindung zu ${OPENCLAW_HOST}" >&2
+    echo "       Prüfe SSH-Keys und Netzwerk" >&2
+    exit 1
+fi
+echo "✓ SSH-Verbindung OK"
+
+# Erstelle Remote-Verzeichnis
+echo "Erstelle Skill-Verzeichnis..."
+ssh "${OPENCLAW_USER}@${OPENCLAW_HOST}" "mkdir -p ${REMOTE_SKILL_DIR}/{lib,examples}" || {
+    echo "ERROR: Konnte Verzeichnis nicht erstellen" >&2
+    exit 1
+}
+echo "✓ Verzeichnis erstellt"
+
+# Kopiere Dateien
+echo "Kopiere Skill-Dateien..."
+
+# Hauptscript
+scp "${LOCAL_SKILL_DIR}/traefik-service-manager.sh" \
+    "${OPENCLAW_USER}@${OPENCLAW_HOST}:${REMOTE_SKILL_DIR}/" || exit 1
+
+# Libraries
+scp "${LOCAL_SKILL_DIR}/lib/"*.sh \
+    "${OPENCLAW_USER}@${OPENCLAW_HOST}:${REMOTE_SKILL_DIR}/lib/" || exit 1
+
+# Konfiguration
+scp "${LOCAL_SKILL_DIR}/config.yaml" \
+    "${OPENCLAW_USER}@${OPENCLAW_HOST}:${REMOTE_SKILL_DIR}/" || exit 1
+
+# README
+scp "${LOCAL_SKILL_DIR}/README.md" \
+    "${OPENCLAW_USER}@${OPENCLAW_HOST}:${REMOTE_SKILL_DIR}/" || exit 1
+
+# Beispiele
+scp "${LOCAL_SKILL_DIR}/examples/"*.sh \
+    "${OPENCLAW_USER}@${OPENCLAW_HOST}:${REMOTE_SKILL_DIR}/examples/" || exit 1
+
+echo "✓ Dateien kopiert"
+
+# Setze Executable-Rechte
+echo "Setze Executable-Rechte..."
+ssh "${OPENCLAW_USER}@${OPENCLAW_HOST}" "
+    chmod +x ${REMOTE_SKILL_DIR}/traefik-service-manager.sh
+    chmod +x ${REMOTE_SKILL_DIR}/lib/*.sh
+    chmod +x ${REMOTE_SKILL_DIR}/examples/*.sh
+" || {
+    echo "WARNING: Konnte Permissions nicht setzen" >&2
+}
+echo "✓ Permissions gesetzt"
+
+# Prüfe Deployment
+echo
+echo "Verifiziere Deployment..."
+ssh "${OPENCLAW_USER}@${OPENCLAW_HOST}" "
+    echo '=== Installierte Dateien ==='
+    ls -lh ${REMOTE_SKILL_DIR}/
+    echo
+    echo '=== Libraries ==='
+    ls -lh ${REMOTE_SKILL_DIR}/lib/
+    echo
+    echo '=== Beispiele ==='
+    ls -lh ${REMOTE_SKILL_DIR}/examples/
+" || {
+    echo "WARNING: Konnte Dateien nicht auflisten" >&2
+}
+
+echo
+echo "✓ Deployment erfolgreich!"
+echo
+echo "Nächste Schritte:"
+echo "1. SSH-Keys einrichten (falls noch nicht geschehen):"
+echo "   ssh ${OPENCLAW_USER}@${OPENCLAW_HOST}"
+echo "   ssh-keygen -t ed25519 -C 'openclaw-skills' -f /root/.ssh/openclaw_skills -N ''"
+echo "   ssh-copy-id -i /root/.ssh/openclaw_skills.pub root@192.168.1.3"
+echo "   ssh-copy-id -i /root/.ssh/openclaw_skills.pub root@192.168.1.23"
+echo
+echo "2. Skill testen:"
+echo "   ssh ${OPENCLAW_USER}@${OPENCLAW_HOST} '${REMOTE_SKILL_DIR}/traefik-service-manager.sh list'"
+echo
+echo "3. Service hinzufügen:"
+echo "   ssh ${OPENCLAW_USER}@${OPENCLAW_HOST} '${REMOTE_SKILL_DIR}/traefik-service-manager.sh add --hostname test.internal --backend https://192.168.1.50:8080'"
+echo

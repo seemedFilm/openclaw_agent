@@ -54,7 +54,106 @@ Manage infrastructure, ensure high availability, automate deployments, and maint
 
 ---
 
-## Traefik Operations
+## Traefik Service Manager Skill
+
+**NEW**: Automatisiertes Traefik Service Management mit integrierter Zertifikatserstellung.
+
+### Verwendung
+
+**Script-Pfad:** `/opt/openclaw/skills/traefik-service-manager/traefik-service-manager.sh`
+
+**Befehle:**
+```bash
+# Dienst hinzufügen (extern oder intern)
+ssh root@192.168.1.11 '/opt/openclaw/skills/traefik-service-manager/traefik-service-manager.sh add --hostname <FQDN> --backend <URL>'
+
+# Dienst entfernen
+ssh root@192.168.1.11 '/opt/openclaw/skills/traefik-service-manager/traefik-service-manager.sh remove --hostname <FQDN>'
+
+# Services auflisten
+ssh root@192.168.1.11 '/opt/openclaw/skills/traefik-service-manager/traefik-service-manager.sh list'
+
+# Zertifikate auflisten
+ssh root@192.168.1.11 '/opt/openclaw/skills/traefik-service-manager/traefik-service-manager.sh certs'
+```
+
+### Service-Typen
+
+Das Skill erkennt automatisch den Service-Typ anhand der Domain:
+
+**Externe Domains** (z.B. `api.diefamilielang.de`):
+- Let's Encrypt Zertifikat via Traefik certResolver
+- HTTP→HTTPS Redirect automatisch
+- Standard-Middlewares: `redirect-https`, `secure`
+
+**Interne Domains** (z.B. `myapp.internal`):
+- Zertifikat von step-ca Server (192.168.1.3)
+- Automatische Zertifikatserstellung via `/root/create-cert2.sh`
+- Zertifikat-Referenz in `tls.yml`
+- Keine certResolver-Konfiguration
+
+### Beispiele
+
+**Externen Service hinzufügen:**
+```bash
+ssh root@192.168.1.11 '/opt/openclaw/skills/traefik-service-manager/traefik-service-manager.sh add \
+  --hostname api.diefamilielang.de \
+  --backend https://192.168.1.50:8080'
+```
+
+**Internen Service hinzufügen:**
+```bash
+ssh root@192.168.1.11 '/opt/openclaw/skills/traefik-service-manager/traefik-service-manager.sh add \
+  --hostname myapp.internal \
+  --backend https://192.168.1.51:3000'
+```
+
+**Service entfernen:**
+```bash
+ssh root@192.168.1.11 '/opt/openclaw/skills/traefik-service-manager/traefik-service-manager.sh remove \
+  --hostname api.diefamilielang.de'
+```
+
+### Workflow
+
+Das Skill führt folgende Schritte automatisch aus:
+
+**Für externe Services:**
+1. Validiere Hostname und Backend
+2. Erstelle Traefik-Config mit certResolver: letsencrypt
+3. Deploy Config zu Traefik-Server (192.168.1.23)
+4. Restart Traefik-Container
+5. Let's Encrypt erstellt Zertifikat beim ersten HTTPS-Zugriff
+
+**Für interne Services:**
+1. Validiere Hostname und Backend
+2. SSH zu step-ca Server (192.168.1.3)
+3. Führe `/root/create-cert2.sh {hostname}` aus
+4. Verifiziere Zertifikat in `/srv/pki/{hostname}/`
+5. Erweitere `tls.yml` mit Zertifikats-Referenz
+6. Erstelle Traefik-Config ohne certResolver
+7. Deploy Config zu Traefik-Server
+8. Restart Traefik-Container
+
+### Features
+
+- ✅ **Automatische Service-Typ-Erkennung**
+- ✅ **Integrierte Zertifikatserstellung**
+- ✅ **Automatisches Backup vor Änderungen**
+- ✅ **Rollback bei Fehlern**
+- ✅ **SSH-basierte Remote-Verwaltung**
+- ✅ **Input-Validierung und Sicherheit**
+
+### Infrastruktur
+
+- **192.168.1.3**: step-ca Zertifikatsserver
+- **192.168.1.23**: Traefik Docker-Server
+- **192.168.1.11**: OpenClaw Container (Skill-Ausführung)
+- **Shared Storage**: `/srv/pki` via Proxmox Bind Mount
+
+---
+
+## Traefik Operations (Legacy)
 
 ### Add Route
 

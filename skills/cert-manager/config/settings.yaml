@@ -1,0 +1,64 @@
+# ============================================================================
+# Cert-Manager Konfiguration
+# ============================================================================
+
+# SSL-Zertifikat-Management
+certificate:
+  step_ca:
+    host: "192.168.1.3"
+    user: "root"
+    script_path: "/root/create-cert.sh"
+    output_path: "/srv/pki"
+    ssh_key: "/root/.ssh/cert_manager"
+    default_validity_days: 365
+
+  letsencrypt:
+    provider: "traefik"
+    # Let's Encrypt wird durch Traefik verwaltet
+    # Keine direkte Erstellung hier, nur Monitoring
+
+# Traefik Integration
+traefik:
+  host: "192.168.1.23"
+  user: "root"
+  ssh_key: "/root/.ssh/cert_manager"
+  container_name: "traefik"
+
+# Auto-Renewal
+renewal:
+  enabled: true
+  check_interval_hours: 24
+  renew_days_before: 30
+  retry_on_failure: true
+  max_retries: 3
+  retry_delay_minutes: 60
+
+# API
+api:
+  host: "0.0.0.0"
+  port: 5001
+  cors_origins:
+    - "http://localhost:5000"
+    - "https://certs.internal"
+  debug: false
+
+# Web-UI
+web:
+  host: "0.0.0.0"
+  port: 5000
+  title: "Cert-Manager"
+  description: "SSL Certificate Management für OpenClaw"
+
+# Database
+database:
+  type: "sqlite"
+  path: "data/cert_manager.db"
+
+# Logging
+logging:
+  level: "INFO"
+  file: "logs/cert_manager.log"
+  format: "json"
+  audit_retention_days: 365
+  max_file_size_mb: 100
+  backup_count: 5

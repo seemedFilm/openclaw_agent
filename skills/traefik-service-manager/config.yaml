@@ -1,0 +1,44 @@
+skill:
+  name: "traefik-service-manager"
+  version: "1.0.0"
+  description: "Automatisches Traefik Service Management mit integrierter Zertifikatserstellung"
+  enabled: true
+
+# SSH-Konfiguration
+ssh:
+  step_ca_server:
+    host: "192.168.1.3"
+    user: "root"
+    key_path: "/root/.ssh/openclaw_skills"
+    cert_script: "/root/create-cert2.sh"
+    cert_storage: "/srv/pki"
+
+  traefik_server:
+    host: "192.168.1.23"
+    user: "root"
+    key_path: "/root/.ssh/openclaw_skills"
+    config_path: "/docker/volume/traefik/dynamic"
+    container_name: "traefik"
+
+# Traefik-Konfiguration
+traefik:
+  default_middlewares:
+    - "redirect-https"
+    - "secure"
+
+  entry_points:
+    - "websecure"
+
+  cert_resolver: "letsencrypt"
+
+# Zertifikats-Konfiguration
+certificates:
+  internal_domain_suffix: ".internal"
+  shared_storage_mount: "/srv/pki"
+
+# Verhalten
+behavior:
+  backup_before_change: true
+  verify_cert_creation: true
+  restart_traefik: true
+  rollback_on_error: true

@@ -6,7 +6,7 @@
 
 Custom Skills erweitern die Fähigkeiten der OpenClaw-Agents mit spezialisierten Funktionalitäten. Skills sind wiederverwendbare Module, die von mehreren Agents genutzt werden können.
 
-**Status:** Phase 3 (In Planung)
+**Status:** Phase 3 (In Arbeit - 2/3 Skills fertig)
 
 ---
 
@@ -63,43 +63,52 @@ traefik-manager renew-cert \
 
 ### 2. Cert-Manager
 
-**Status:** 📅 Geplant (Phase 3)
+**Status:** ✅ Implementiert (Phase 3)
 
-**Purpose:** Automatisches SSL-Zertifikat-Management mit Let's Encrypt.
+**Purpose:** Automatisches SSL-Zertifikat-Management mit Web-Interface und OpenClaw-Integration.
 
 **Capabilities:**
-- Let's Encrypt Integration (ACME)
-- Auto-Renewal (30 Tage vor Ablauf)
-- Multi-Domain Zertifikate (SAN)
-- Certificate Monitoring
-- Webhook-Notifications
+- **Web-Interface:** Dashboard für Zertifikatsverwaltung (Port 5000)
+- **REST API:** FastAPI-Backend für Web-UI und OpenClaw
+- **Dual Certificate Sources:** step-ca (192.168.1.3) + Let's Encrypt (Traefik)
+- **Auto-Renewal:** Monitoring und automatische Erneuerung 30 Tage vor Ablauf
+- **Audit-Logging:** Vollständige Operations-History
 
 **Verwendung:**
-```yaml
-# In Agent-Config
-skills:
-  - name: "cert-manager"
-    enabled: true
-    config:
-      provider: "letsencrypt"
-      email: "ops@example.com"
-      renew_days_before: 30
+
+**Web-UI:**
+```bash
+# Traefik-Route einrichten
+/opt/openclaw/skills/traefik-service-manager/traefik-service-manager.sh add \
+  --hostname certs.internal \
+  --backend http://192.168.1.11:5000
+
+# Öffne: https://certs.internal
 ```
 
-**Operations:**
-
+**REST API:**
 ```bash
 # Zertifikat erstellen
-cert-manager create \
-  --domain api.example.com \
-  --provider letsencrypt \
-  --email ops@example.com
+curl -X POST http://localhost:5001/api/certs \
+  -H "Content-Type: application/json" \
+  -d '{"hostname":"myapp.internal","type":"step-ca","auto_renew":true}'
 
-# Automatische Erneuerung
-cert-manager auto-renew
+# Zertifikate auflisten
+curl http://localhost:5001/api/certs
 
-# Status prüfen
-cert-manager status --domain api.example.com
+# Zertifikat erneuern
+curl -X POST http://localhost:5001/api/certs/myapp.internal/renew
+```
+
+**OpenClaw Integration:**
+```python
+# Im ops-agent
+import requests
+response = requests.post('http://localhost:5001/api/certs', json={
+    'hostname': 'myapp.internal',
+    'type': 'step-ca',
+    'auto_renew': True
+})
 ```
 
 **Dokumentation:** [cert-manager/README.md](cert-manager/README.md)
@@ -336,16 +345,25 @@ skills:
 
 ## 🗺️ Roadmap
 
-### Phase 3 (Aktuell geplant)
-- [ ] **Traefik-Manager Skill**
-  - [ ] Route-Management
-  - [ ] Middleware-Configuration
-  - [ ] Health-Monitoring
+### Phase 3 (In Arbeit - 2/3 fertig)
+- [x] **Traefik-Manager Skill** ✅
+  - [x] Route-Management
+  - [x] Middleware-Configuration
+  - [x] Health-Monitoring
+  - [x] step-ca & Let's Encrypt Integration
 
-- [ ] **Cert-Manager Skill**
-  - [ ] Let's Encrypt Integration
-  - [ ] Auto-Renewal
-  - [ ] Certificate Monitoring
+- [x] **Cert-Manager Skill** ✅
+  - [x] Web-Interface (Dashboard)
+  - [x] REST API (FastAPI)
+  - [x] step-ca Integration
+  - [x] Let's Encrypt Integration
+  - [x] Auto-Renewal Scheduler
+  - [x] Audit-Logging
+
+- [ ] **Monitoring & Alerting Skill** 🚧
+  - [ ] Prometheus Integration
+  - [ ] Alert-Manager
+  - [ ] Grafana Dashboards
 
 ### Phase 4 (Zukünftig)
 - [ ] **Deployment-Automation Skill**

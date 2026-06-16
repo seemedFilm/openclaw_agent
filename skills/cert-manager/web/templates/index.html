@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Cert-Manager{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <h2>Dashboard</h2>
+
+    <!-- Statistiken -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>{{ stats.total or 0 }}</h3>
+            <p>Gesamt-Zertifikate</p>
+        </div>
+        <div class="stat-card success">
+            <h3>{{ stats.valid or 0 }}</h3>
+            <p>Gültig</p>
+        </div>
+        <div class="stat-card warning">
+            <h3>{{ stats.expiring_soon or 0 }}</h3>
+            <p>Laufen bald ab (&lt;30 Tage)</p>
+        </div>
+        <div class="stat-card danger">
+            <h3>{{ stats.expired or 0 }}</h3>
+            <p>Abgelaufen</p>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card info">
+            <h3>{{ stats.by_type.step_ca or 0 }}</h3>
+            <p>step-ca Zertifikate</p>
+        </div>
+        <div class="stat-card info">
+            <h3>{{ stats.by_type.letsencrypt or 0 }}</h3>
+            <p>Let's Encrypt</p>
+        </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="actions">
+        <a href="/certificates/new" class="btn btn-primary">➕ Neues Zertifikat</a>
+        <a href="/certificates" class="btn btn-secondary">📋 Alle Zertifikate</a>
+    </div>
+
+    <!-- Ablaufende Zertifikate -->
+    <h3>Zertifikate die bald ablaufen</h3>
+    <table class="cert-table">
+        <thead>
+            <tr>
+                <th>Hostname</th>
+                <th>Typ</th>
+                <th>Läuft ab am</th>
+                <th>Tage verbleibend</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cert in certificates %}
+                {% if cert.days_until_expiry < 30 %}
+                <tr class="{% if cert.days_until_expiry <= 0 %}danger{% elif cert.days_until_expiry < 7 %}warning{% endif %}">
+                    <td><strong>{{ cert.hostname }}</strong></td>
+                    <td><span class="badge {{ 'badge-primary' if cert.type == 'step-ca' else 'badge-secondary' }}">{{ cert.type }}</span></td>
+                    <td>{{ cert.expires_at[:10] }}</td>
+                    <td>{{ cert.days_until_expiry }} Tage</td>
+                    <td>
+                        {% if cert.days_until_expiry <= 0 %}
+                            <span class="status-badge danger">Abgelaufen</span>
+                        {% elif cert.days_until_expiry < 7 %}
+                            <span class="status-badge warning">Dringend</span>
+                        {% else %}
+                            <span class="status-badge warning">Bald</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+            {% else %}
+                <tr>
+                    <td colspan="5" style="text-align: center;">✅ Keine ablaufenden Zertifikate</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -30,6 +30,23 @@ provider:
   temperature: 0.4
 
 skills:
+  - name: "traefik-service-manager"
+    enabled: true
+    priority: "high"
+    script_path: "/opt/openclaw/skills/traefik-service-manager/traefik-service-manager.sh"
+    config:
+      step_ca_host: "192.168.1.3"
+      traefik_host: "192.168.1.23"
+      ssh_user: "root"
+      config_path: "/docker/volume/traefik/dynamic"
+      container_name: "traefik"
+    operations:
+      - "add_service"
+      - "remove_service"
+      - "list_services"
+      - "list_certificates"
+    description: "Automatisches Traefik Service Management mit Zertifikatserstellung"
+
   - name: "traefik-management"
     enabled: true
     priority: "high"

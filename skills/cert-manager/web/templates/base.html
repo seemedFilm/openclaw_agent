@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Cert-Manager{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🔐 Cert-Manager</h1>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="{% if request.endpoint == 'index' %}active{% endif %}">Dashboard</a>
+            <a href="/certificates" class="{% if request.endpoint == 'certificates' %}active{% endif %}">Zertifikate</a>
+            <a href="/renewal-jobs" class="{% if request.endpoint == 'renewal_jobs' %}active{% endif %}">Renewal-Jobs</a>
+            <a href="/audit-log" class="{% if request.endpoint == 'audit_log' %}active{% endif %}">Audit-Log</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>Cert-Manager v1.0.0 | OpenClaw Multi-Agent System</p>
+    </footer>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

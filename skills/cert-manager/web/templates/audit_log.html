@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Audit-Log - Cert-Manager{% endblock %}
+
+{% block content %}
+<div class="audit-log">
+    <h2>Audit-Log</h2>
+
+    <p class="info-text">
+        Vollständige History aller Zertifikatsoperationen.
+    </p>
+
+    <table class="cert-table">
+        <thead>
+            <tr>
+                <th>Zeitstempel</th>
+                <th>Aktion</th>
+                <th>Hostname</th>
+                <th>Benutzer</th>
+                <th>Status</th>
+                <th>Nachricht</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.timestamp[:19] }}</td>
+                <td>
+                    {% if log.action == 'create_certificate' %}
+                        <span class="badge badge-primary">Erstellt</span>
+                    {% elif log.action == 'renew_certificate' %}
+                        <span class="badge badge-success">Erneuert</span>
+                    {% elif log.action == 'delete_certificate' %}
+                        <span class="badge badge-danger">Gelöscht</span>
+                    {% else %}
+                        <span class="badge">{{ log.action }}</span>
+                    {% endif %}
+                </td>
+                <td><strong>{{ log.hostname }}</strong></td>
+                <td>{{ log.user }}</td>
+                <td>
+                    {% if log.status == 'success' %}
+                        <span class="status-badge success">Erfolg</span>
+                    {% elif log.status == 'failed' %}
+                        <span class="status-badge danger">Fehler</span>
+                    {% else %}
+                        <span class="status-badge">{{ log.status }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ log.message }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" style="text-align: center;">Keine Logs vorhanden</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

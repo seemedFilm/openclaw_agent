@@ -276,17 +276,24 @@ journalctl -xe
 - [x] Docker, Ansible, Tools
 - [x] LiteLLM Proxy für Bedrock
 
-### ⏳ Phase 2: Agents (Geplant)
-- [ ] Dev-Agent Definition & Prompts
-- [ ] Review-Agent Definition
-- [ ] Security-Agent Definition
-- [ ] Ops-Agent Definition
-- [ ] Inter-Agent-Kommunikation
+### ✅ Phase 2: Agents (Fertig)
+- [x] Dev-Agent Definition & Prompts (.claude.md)
+- [x] Review-Agent Definition (.claude.md)
+- [x] Security-Agent Definition (.claude.md)
+- [x] Ops-Agent Definition (.claude.md)
+- [x] Agent-Testing (Password-Checker ✅, Code-Review ✅)
 
-### ⏳ Phase 3: Skills (Geplant)
-- [ ] Traefik-Manager Skill
-- [ ] Cert-Manager Skill (Let's Encrypt)
-- [ ] Remote SSH Management
+### ✅ Phase 3: Skills (In Arbeit - 2/3 fertig)
+- [x] **Traefik Service Manager Skill** - Automatisches Service Management mit Zertifikatserstellung
+  - Externe Services mit Let's Encrypt
+  - Interne Services mit step-ca Zertifikaten
+  - Automatische Config-Generierung und Deployment
+- [x] **Cert-Manager Skill** - Web-Interface für Zertifikatsverwaltung
+  - Web-Dashboard (https://certs.internal)
+  - REST API für OpenClaw-Integration
+  - Dual Sources: step-ca + Let's Encrypt
+  - Auto-Renewal & Audit-Logging
+- [ ] Monitoring & Alerting Skill
 
 ### ⏳ Phase 4: Integration (Geplant)
 - [ ] Traefik Docker-Integration

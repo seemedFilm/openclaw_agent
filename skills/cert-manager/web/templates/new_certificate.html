@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Neues Zertifikat - Cert-Manager{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h2>Neues Zertifikat erstellen</h2>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        <strong>Fehler:</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    {% if warning %}
+    <div class="alert alert-warning">
+        <strong>Warnung:</strong> {{ warning }}
+    </div>
+    {% endif %}
+
+    {% if success_partial %}
+    <div class="alert alert-info">
+        <strong>Info:</strong> Das Zertifikat wurde erfolgreich erstellt und ist in der Übersicht verfügbar. Die Traefik-Konfiguration muss ggf. manuell nachgeholt werden.
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/certificates/new">
+        <div class="form-group">
+            <label for="hostname">Hostname *</label>
+            <input type="text" id="hostname" name="hostname" required
+                   placeholder="z.B. myapp.internal oder api.example.com"
+                   pattern="[a-zA-Z0-9.-]+"
+                   title="Nur Buchstaben, Zahlen, Punkte und Bindestriche erlaubt">
+            <small>Für interne Services: .internal-Endung verwenden</small>
+        </div>
+
+        <div class="form-group">
+            <label for="type">Zertifikatstyp *</label>
+            <select id="type" name="type" required onchange="updateTypeInfo()">
+                <option value="">-- Bitte wählen --</option>
+                <option value="step-ca">step-ca (Interne Services)</option>
+                <option value="letsencrypt">Let's Encrypt (Externe Domains)</option>
+            </select>
+            <small id="type-info"></small>
+        </div>
+
+        <div class="form-group" id="backend_ip_group">
+            <label for="backend_ip">Backend-IP <span id="backend_ip_required"></span></label>
+            <input type="text" id="backend_ip" name="backend_ip"
+                   placeholder="z.B. https://192.168.1.50:8080"
+                   pattern="https?://.*"
+                   title="Muss mit http:// oder https:// beginnen">
+            <small id="backend_ip_help">Backend-Server für Traefik Reverse Proxy</small>
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="auto_renew" checked>
+                Auto-Renewal aktivieren (empfohlen)
+            </label>
+            <small>Zertifikat wird automatisch 30 Tage vor Ablauf erneuert</small>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">✓ Erstellen</button>
+            <a href="/certificates" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+
+    <div class="info-box">
+        <h3>ℹ️ Hinweise</h3>
+        <ul>
+            <li><strong>step-ca:</strong> Für interne Services (*.internal). Zertifikat wird auf 192.168.1.3 erstellt. Bei Angabe einer Backend-IP wird automatisch die Traefik-Konfiguration erstellt.</li>
+            <li><strong>Let's Encrypt:</strong> Für externe Domains. Wird durch Traefik beim ersten HTTPS-Zugriff erstellt.</li>
+            <li><strong>Auto-Renewal:</strong> Aktiviert automatische Erneuerung 30 Tage vor Ablauf.</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateTypeInfo() {
+    const type = document.getElementById('type').value;
+    const info = document.getElementById('type-info');
+    const backendIpGroup = document.getElementById('backend_ip_group');
+    const backendIpInput = document.getElementById('backend_ip');
+    const backendIpRequired = document.getElementById('backend_ip_required');
+    const backendIpHelp = document.getElementById('backend_ip_help');
+
+    if (type === 'step-ca') {
+        info.textContent = 'Für interne Services. Zertifikat wird via SSH auf 192.168.1.3 erstellt.';
+        backendIpGroup.style.borderLeft = '3px solid #0066cc';
+        backendIpGroup.style.paddingLeft = '12px';
+        backendIpGroup.style.backgroundColor = '#f0f7ff';
+        backendIpRequired.textContent = '(empfohlen für Traefik-Integration)';
+        backendIpRequired.style.color = '#0066cc';
+        backendIpRequired.style.fontWeight = 'bold';
+        backendIpHelp.innerHTML = '<strong>Backend-Server für automatische Traefik-Konfiguration</strong> (z.B. https://192.168.1.50:8080)<br>Bei Angabe wird der Service automatisch in Traefik eingerichtet.';
+        backendIpInput.placeholder = 'https://192.168.1.50:8080 (empfohlen)';
+    } else if (type === 'letsencrypt') {
+        info.textContent = 'Für externe Domains. Wird durch Traefik automatisch beim ersten HTTPS-Zugriff erstellt.';
+        backendIpGroup.style.borderLeft = '';
+        backendIpGroup.style.paddingLeft = '';
+        backendIpGroup.style.backgroundColor = '';
+        backendIpRequired.textContent = '(optional)';
+        backendIpRequired.style.color = '#666';
+        backendIpRequired.style.fontWeight = 'normal';
+        backendIpHelp.textContent = 'Backend-Server für Traefik Reverse Proxy (optional)';
+        backendIpInput.placeholder = 'z.B. https://192.168.1.50:8080 (optional)';
+    } else {
+        info.textContent = '';
+        backendIpGroup.style.borderLeft = '';
+        backendIpGroup.style.paddingLeft = '';
+        backendIpGroup.style.backgroundColor = '';
+        backendIpRequired.textContent = '(optional)';
+        backendIpRequired.style.color = '#666';
+        backendIpRequired.style.fontWeight = 'normal';
+        backendIpHelp.textContent = 'Backend-Server für Traefik Reverse Proxy';
+        backendIpInput.placeholder = 'z.B. https://192.168.1.50:8080';
+    }
+}
+
+// Auto-Typ-Erkennung basierend auf Hostname
+document.getElementById('hostname').addEventListener('blur', function() {
+    const hostname = this.value;
+    const typeSelect = document.getElementById('type');
+
+    if (typeSelect.value === '') {  // Nur wenn noch nicht gewählt
+        if (hostname.endsWith('.internal')) {
+            typeSelect.value = 'step-ca';
+        } else if (hostname.includes('.')) {
+            typeSelect.value = 'letsencrypt';
+        }
+        updateTypeInfo();
+    }
+});
+
+// Initial state
+updateTypeInfo();
+</script>
+{% endblock %}

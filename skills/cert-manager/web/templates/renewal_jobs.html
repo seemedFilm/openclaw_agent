@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Renewal-Jobs - Cert-Manager{% endblock %}
+
+{% block content %}
+<div class="renewal-jobs">
+    <h2>Renewal-Jobs</h2>
+
+    <p class="info-text">
+        Automatische Erneuerung von Zertifikaten 30 Tage vor Ablauf.
+    </p>
+
+    <table class="cert-table">
+        <thead>
+            <tr>
+                <th>Hostname</th>
+                <th>Status</th>
+                <th>Erneuern ab (Tage vor Ablauf)</th>
+                <th>Letzter Lauf</th>
+                <th>Nächster Lauf</th>
+                <th>Ergebnis</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr>
+                <td><strong>{{ job.hostname }}</strong></td>
+                <td>
+                    {% if job.enabled %}
+                        <span class="status-badge success">✓ Aktiv</span>
+                    {% else %}
+                        <span class="status-badge">✗ Inaktiv</span>
+                    {% endif %}
+                </td>
+                <td>{{ job.renew_days_before }} Tage</td>
+                <td>{{ job.last_run[:19] if job.last_run else 'Noch nicht gelaufen' }}</td>
+                <td>{{ job.next_run[:19] if job.next_run else '-' }}</td>
+                <td>
+                    {% if job.status == 'success' %}
+                        <span class="status-badge success">Erfolg</span>
+                    {% elif job.status == 'failed' %}
+                        <span class="status-badge danger" title="{{ job.error_message }}">Fehler</span>
+                    {% elif job.status == 'pending' %}
+                        <span class="status-badge">Ausstehend</span>
+                    {% else %}
+                        <span class="status-badge">{{ job.status or '-' }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" style="text-align: center;">Keine Renewal-Jobs konfiguriert</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="info-box">
+        <h3>ℹ️ Renewal-Scheduler</h3>
+        <p>Der Renewal-Scheduler läuft alle 24 Stunden und prüft ablaufende Zertifikate.</p>
+        <p><strong>Service:</strong> <code>systemctl status cert-manager-renewal</code></p>
+    </div>
+</div>
+{% endblock %}

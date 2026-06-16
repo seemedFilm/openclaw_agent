@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Zertifikate - Cert-Manager{% endblock %}
+
+{% block content %}
+<div class="certificates">
+    <div class="page-header">
+        <h2>Zertifikate</h2>
+        <a href="/certificates/new" class="btn btn-primary">➕ Neues Zertifikat</a>
+    </div>
+
+    <table class="cert-table">
+        <thead>
+            <tr>
+                <th>Hostname</th>
+                <th>Typ</th>
+                <th>Backend-IP</th>
+                <th>Erstellt</th>
+                <th>Läuft ab</th>
+                <th>Tage verbleibend</th>
+                <th>Auto-Renewal</th>
+                <th>Status</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cert in certificates %}
+            <tr class="{% if cert.days_until_expiry <= 0 %}danger{% elif cert.days_until_expiry < 30 %}warning{% endif %}">
+                <td><strong>{{ cert.hostname }}</strong></td>
+                <td>
+                    <span class="badge {{ 'badge-primary' if cert.type == 'step-ca' else 'badge-secondary' }}">
+                        {{ cert.type }}
+                    </span>
+                </td>
+                <td>
+                    {% if cert.backend_ip %}
+                        <code style="font-size: 0.9em;">{{ cert.backend_ip }}</code>
+                    {% else %}
+                        <span style="color: #999;">-</span>
+                    {% endif %}
+                </td>
+                <td>{{ cert.created_at[:10] }}</td>
+                <td>{{ cert.expires_at[:10] }}</td>
+                <td>
+                    {% if cert.days_until_expiry <= 0 %}
+                        <span class="text-danger">{{ cert.days_until_expiry }} Tage</span>
+                    {% elif cert.days_until_expiry < 7 %}
+                        <span class="text-warning">{{ cert.days_until_expiry }} Tage</span>
+                    {% else %}
+                        {{ cert.days_until_expiry }} Tage
+                    {% endif %}
+                </td>
+                <td>
+                    {% if cert.auto_renew %}
+                        <span class="status-badge success">✓ Aktiv</span>
+                    {% else %}
+                        <span class="status-badge">✗ Inaktiv</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if cert.status == 'valid' %}
+                        <span class="status-badge success">Gültig</span>
+                    {% elif cert.status == 'expiring' %}
+                        <span class="status-badge warning">Läuft ab</span>
+                    {% elif cert.status == 'expired' %}
+                        <span class="status-badge danger">Abgelaufen</span>
+                    {% else %}
+                        <span class="status-badge">{{ cert.status }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-success" onclick="renewCert('{{ cert.hostname }}')">🔄 Erneuern</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteCert('{{ cert.hostname }}')">🗑️ Löschen</button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="9" style="text-align: center;">Keine Zertifikate vorhanden</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function renewCert(hostname) {
+    if (!confirm(`Zertifikat für ${hostname} wirklich erneuern?`)) return;
+
+    $.post(`/certificates/${hostname}/renew`, function(data) {
+        if (data.success) {
+            alert('Zertifikat erfolgreich erneuert!');
+            location.reload();
+        } else {
+            alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+        }
+    }).fail(function() {
+        alert('Verbindungsfehler zum API-Server');
+    });
+}
+
+function deleteCert(hostname) {
+    if (!confirm(`Zertifikat für ${hostname} wirklich löschen?`)) return;
+
+    $.post(`/certificates/${hostname}/delete`, function(data) {
+        if (data.success) {
+            alert('Zertifikat erfolgreich gelöscht!');
+            location.reload();
+        } else {
+            alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+        }
+    }).fail(function() {
+        alert('Verbindungsfehler zum API-Server');
+    });
+}
+</script>
+{% endblock %}
