@@ -141,6 +141,24 @@ class CertificateManager:
                     self._create_traefik_service(hostname, backend_ip, user)
                     result['traefik_config_created'] = True
                     result['traefik_url'] = f"https://{hostname}"
+
+                    # Pi-hole DNS-Eintrag erstellen (nach erfolgreicher Traefik-Config)
+                    try:
+                        self._add_pihole_dns(hostname, user)
+                        result['pihole_dns_created'] = True
+                    except Exception as pihole_error:
+                        # Traefik funktioniert, aber DNS-Eintrag fehlgeschlagen
+                        result['pihole_dns_created'] = False
+                        result['pihole_error'] = str(pihole_error)
+                        self._log_audit(
+                            action="add_pihole_dns",
+                            hostname=hostname,
+                            user=user,
+                            status="warning",
+                            message=f"Traefik-Config erstellt, aber Pi-hole DNS fehlgeschlagen: {str(pihole_error)}",
+                            details={"hostname": hostname}
+                        )
+
                 except Exception as traefik_error:
                     # Zertifikat wurde erstellt, aber Traefik-Integration fehlgeschlagen
                     result['traefik_config_created'] = False
@@ -546,8 +564,8 @@ class CertificateManager:
         conn = self._get_db_connection()
         cursor = conn.cursor()
 
-        # Prüfe ob existiert
-        cursor.execute("SELECT type, cert_path FROM certificates WHERE hostname = ?", (hostname,))
+        # Prüfe ob existiert und ob Traefik-Integration vorhanden
+        cursor.execute("SELECT type, cert_path, backend_ip FROM certificates WHERE hostname = ?", (hostname,))
         row = cursor.fetchone()
 
         if not row:
@@ -556,6 +574,7 @@ class CertificateManager:
 
         cert_type = row['type']
         cert_path = row['cert_path']
+        had_traefik_config = row['backend_ip'] is not None
 
         # Lösche physische Zertifikatsdateien bei step-ca
         deletion_errors = []
@@ -564,6 +583,14 @@ class CertificateManager:
                 self._delete_step_ca_files(hostname)
             except Exception as e:
                 deletion_errors.append(f"Dateien konnten nicht gelöscht werden: {str(e)}")
+
+        # Entferne Pi-hole DNS-Eintrag falls Traefik-Integration vorhanden war
+        if had_traefik_config:
+            try:
+                self._remove_pihole_dns(hostname, user)
+            except Exception as e:
+                deletion_errors.append(f"Pi-hole DNS-Eintrag konnte nicht entfernt werden: {str(e)}")
+                # Nicht abbrechen, andere Cleanup-Schritte fortsetzen
 
         # Lösche aus DB
         cursor.execute("DELETE FROM certificates WHERE hostname = ?", (hostname,))
@@ -732,3 +759,159 @@ class CertificateManager:
                 details={"backend_ip": backend_ip}
             )
             raise Exception("Timeout beim Erstellen des Traefik-Service")
+
+    def _add_pihole_dns(self, hostname: str, user: str):
+        """
+        Füge DNS-Eintrag zu Pi-hole hinzu
+
+        Args:
+            hostname: Service-Hostname (z.B. myapp.internal)
+            user: User der die Aktion ausführt
+        """
+        pihole_manager_script = BASE_DIR.parent / "pihole-dns-manager" / "pihole-dns-manager.sh"
+
+        if not pihole_manager_script.exists():
+            self._log_audit(
+                action="add_pihole_dns",
+                hostname=hostname,
+                user=user,
+                status="failed",
+                message="pihole-dns-manager Script nicht gefunden",
+                details={"expected_path": str(pihole_manager_script)}
+            )
+            raise Exception(f"pihole-dns-manager Script nicht gefunden: {pihole_manager_script}")
+
+        # Führe pihole-dns-manager add aus (IP = Traefik aus config)
+        command = [
+            str(pihole_manager_script),
+            "add",
+            "--hostname", hostname
+        ]
+
+        try:
+            result = subprocess.run(
+                command,
+                stdin=subprocess.PIPE,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            if result.returncode != 0:
+                error_msg = result.stderr if result.stderr else result.stdout
+                self._log_audit(
+                    action="add_pihole_dns",
+                    hostname=hostname,
+                    user=user,
+                    status="failed",
+                    message=f"pihole-dns-manager fehlgeschlagen: {error_msg}",
+                    details={"command": " ".join(command)}
+                )
+                raise Exception(f"Pi-hole DNS-Eintrag konnte nicht erstellt werden: {error_msg}")
+
+            # Erfolgreich
+            self._log_audit(
+                action="add_pihole_dns",
+                hostname=hostname,
+                user=user,
+                status="success",
+                message="Pi-hole DNS-Eintrag erfolgreich erstellt",
+                details={"dns_record": f"{hostname} -> 192.168.1.23 (Traefik)"}
+            )
+
+        except subprocess.TimeoutExpired:
+            self._log_audit(
+                action="add_pihole_dns",
+                hostname=hostname,
+                user=user,
+                status="failed",
+                message="Timeout beim Erstellen des Pi-hole DNS-Eintrags"
+            )
+            raise Exception("Timeout beim Erstellen des Pi-hole DNS-Eintrags")
+        except Exception as e:
+            self._log_audit(
+                action="add_pihole_dns",
+                hostname=hostname,
+                user=user,
+                status="failed",
+                message=f"Fehler beim Erstellen: {str(e)}"
+            )
+            raise
+
+    def _remove_pihole_dns(self, hostname: str, user: str):
+        """
+        Entferne DNS-Eintrag aus Pi-hole
+
+        Args:
+            hostname: Service-Hostname (z.B. myapp.internal)
+            user: User der die Aktion ausführt
+        """
+        pihole_manager_script = BASE_DIR.parent / "pihole-dns-manager" / "pihole-dns-manager.sh"
+
+        if not pihole_manager_script.exists():
+            self._log_audit(
+                action="remove_pihole_dns",
+                hostname=hostname,
+                user=user,
+                status="failed",
+                message="pihole-dns-manager Script nicht gefunden",
+                details={"expected_path": str(pihole_manager_script)}
+            )
+            raise Exception(f"pihole-dns-manager Script nicht gefunden: {pihole_manager_script}")
+
+        # Führe pihole-dns-manager remove aus
+        command = [
+            str(pihole_manager_script),
+            "remove",
+            "--hostname", hostname
+        ]
+
+        try:
+            result = subprocess.run(
+                command,
+                stdin=subprocess.PIPE,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            if result.returncode != 0:
+                error_msg = result.stderr if result.stderr else result.stdout
+                self._log_audit(
+                    action="remove_pihole_dns",
+                    hostname=hostname,
+                    user=user,
+                    status="failed",
+                    message=f"pihole-dns-manager fehlgeschlagen: {error_msg}",
+                    details={"command": " ".join(command)}
+                )
+                raise Exception(f"Pi-hole DNS-Eintrag konnte nicht entfernt werden: {error_msg}")
+
+            # Erfolgreich
+            self._log_audit(
+                action="remove_pihole_dns",
+                hostname=hostname,
+                user=user,
+                status="success",
+                message="Pi-hole DNS-Eintrag erfolgreich entfernt",
+                details={"dns_record_removed": hostname}
+            )
+
+        except subprocess.TimeoutExpired:
+            self._log_audit(
+                action="remove_pihole_dns",
+                hostname=hostname,
+                user=user,
+                status="failed",
+                message="Timeout beim Entfernen des Pi-hole DNS-Eintrags"
+            )
+            raise Exception("Timeout beim Entfernen des Pi-hole DNS-Eintrags")
+        except Exception as e:
+            self._log_audit(
+                action="remove_pihole_dns",
+                hostname=hostname,
+                user=user,
+                status="failed",
+                message=f"Fehler beim Entfernen: {str(e)}"
+            )
+            raise

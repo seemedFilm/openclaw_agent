@@ -1,8 +1,47 @@
 # OpenClaw Multi-Agent System
 
-Diese Verzeichnis enthält die Konfigurationen für die 4 spezialisierten OpenClaw-Agents.
+⚠️ **STATUS: Konzept-Phase - Nicht implementiert**
 
-## 🤖 Agent-Übersicht
+Diese Verzeichnis enthält Konzept-Dokumentation für geplante OpenClaw-Agents.
+
+**Aktueller Stand:**
+- ❌ OpenClaw CLI nicht implementiert
+- ❌ Systemd-Services nicht deployed
+- ❌ LiteLLM-Integration fehlt
+- ✅ **Alternative Lösung implementiert** (siehe unten)
+
+## Alternative Lösung: Skill-basierte Automation
+
+Statt KI-Agents wurden **Skills** implementiert, die die gewünschte Automation bereitstellen:
+
+### Vollständiger Workflow (v1.1.0):
+
+```
+1. User erstellt Zertifikat via Web-UI (http://192.168.1.11:5000)
+   ↓
+2. cert-manager erstellt Zertifikat via step-ca (192.168.1.3)
+   ↓
+3. traefik-service-manager erstellt Traefik-Config (192.168.1.23)
+   ↓
+4. pihole-dns-manager erstellt DNS-Eintrag (192.168.1.7)
+   ↓
+5. Service ist erreichbar: https://myapp.internal ✓
+```
+
+**Vorteile:**
+- ✅ Einfacher wartbar
+- ✅ Keine LLM-API-Calls notwendig
+- ✅ Deterministisch und schnell
+- ✅ Vollständig ausreichend für Zertifikats-Management
+
+**Skills:**
+- `skills/cert-manager/` - Zertifikats-Verwaltung (REST API + Web-UI)
+- `skills/traefik-service-manager/` - Traefik Reverse Proxy Konfiguration
+- `skills/pihole-dns-manager/` - Pi-hole DNS-Einträge (NEU in v1.1.0)
+
+---
+
+## 🤖 OpenClaw Agent-Konzepte (für Referenz)
 
 ### 1. Dev-Agent (`dev-agent/`)
 **Aufgabe:** Code-Entwicklung mit Claude Code Integration

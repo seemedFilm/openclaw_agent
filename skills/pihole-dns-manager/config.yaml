@@ -1,0 +1,33 @@
+# ============================================================================
+# Pi-hole DNS Manager Configuration
+# ============================================================================
+
+pihole:
+  # Pi-hole Server
+  host: "192.168.1.7"
+  api_endpoint: "http://192.168.1.7/admin/api.php"
+
+  # Authentication
+  # WICHTIG: Token via Environment-Variable setzen:
+  # export PIHOLE_API_TOKEN="your-token-here"
+  api_token_env: "PIHOLE_API_TOKEN"
+
+  # Alternativ: Token direkt (NICHT EMPFOHLEN für Production!)
+  # api_token: "your-token-here"
+
+  # DNS-Einstellungen
+  default_ttl: 3600
+
+  # Traefik IP (für DNS A-Records)
+  traefik_ip: "192.168.1.23"
+
+# Logging
+logging:
+  enabled: true
+  level: "INFO"
+  file: "/var/log/pihole-dns-manager.log"
+
+# Timeouts
+timeouts:
+  api_request: 30
+  dns_propagation: 5
