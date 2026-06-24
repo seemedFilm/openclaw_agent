@@ -91,6 +91,7 @@ docker-compose.override.yml
 
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
