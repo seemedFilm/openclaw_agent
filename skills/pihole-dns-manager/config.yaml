@@ -5,15 +5,20 @@
 pihole:
   # Pi-hole Server
   host: "192.168.1.7"
+
+  # Zugriffsmethode: "ssh" (empfohlen) oder "api" (nur Pi-hole v5)
+  access_method: "ssh"
+
+  # SSH-Zugriff (für access_method: ssh)
+  ssh_user: "root"
+  # SSH-Key wird automatisch verwendet (~/.ssh/id_rsa oder ~/.ssh/id_ed25519)
+
+  # Config-Dateien (für SSH-Zugriff)
+  custom_list: "/etc/pihole/custom.list"
+
+  # API-Zugriff (nur für Pi-hole v5, deprecated in v6)
   api_endpoint: "http://192.168.1.7/admin/api.php"
-
-  # Authentication
-  # WICHTIG: Token via Environment-Variable setzen:
-  # export PIHOLE_API_TOKEN="your-token-here"
-  api_token_env: "PIHOLE_API_TOKEN"
-
-  # Alternativ: Token direkt (NICHT EMPFOHLEN für Production!)
-  # api_token: "your-token-here"
+  api_token_env: "PIHOLE_API_TOKEN"  # Nur für v5
 
   # DNS-Einstellungen
   default_ttl: 3600

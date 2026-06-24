@@ -17,30 +17,29 @@ Wenn ein Zertifikat mit Traefik-Integration erstellt wird:
 ```yaml
 pihole:
   host: "192.168.1.7"
-  api_endpoint: "http://192.168.1.7/admin/api.php"
-  api_token_env: "PIHOLE_API_TOKEN"
+  access_method: "ssh"  # SSH-basiert (empfohlen, v5/v6 kompatibel)
+  ssh_user: "root"
+  custom_list: "/etc/pihole/custom.list"
   traefik_ip: "192.168.1.23"
 ```
 
-### API-Token setzen
+### SSH-Zugriff einrichten
 
-**Empfohlen (Environment Variable):**
+**Pi-hole v6 hat kein API-Token-System mehr - verwende SSH:**
+
 ```bash
-export PIHOLE_API_TOKEN="your-token-here"
+# Von OpenClaw-Container (192.168.1.11) zu Pi-hole (192.168.1.7)
+ssh root@192.168.1.11
+
+# SSH-Key generieren (falls nicht vorhanden)
+ssh-keygen -t ed25519 -C "openclaw-pihole" -N "" -f ~/.ssh/id_ed25519
+
+# Public Key zu Pi-hole kopieren
+ssh-copy-id root@192.168.1.7
+
+# Test SSH-Verbindung
+ssh root@192.168.1.7 "cat /etc/pihole/custom.list"
 ```
-
-**Oder direkt in config.yaml (NICHT empfohlen):**
-```yaml
-pihole:
-  api_token: "your-token-here"
-```
-
-### API-Token generieren
-
-1. Öffne Pi-hole Web-Interface: `http://192.168.1.7/admin`
-2. Login mit Admin-Passwort
-3. Settings → API → Generate Token
-4. Kopiere Token
 
 ## Usage
 
@@ -91,27 +90,28 @@ if backend_ip:
 
 ## Troubleshooting
 
-### ERROR: Pi-hole API Token nicht gefunden
+### ERROR: SSH-Verbindung fehlgeschlagen
 
 ```bash
-# Prüfe Environment-Variable
-echo $PIHOLE_API_TOKEN
+# Teste SSH-Verbindung
+ssh root@192.168.1.7
 
-# Falls leer, setze Token
-export PIHOLE_API_TOKEN="your-token-here"
+# Falls fehlgeschlagen: Kopiere SSH-Key
+ssh root@192.168.1.11
+ssh-copy-id root@192.168.1.7
+
+# Test erneut
+ssh root@192.168.1.7 "cat /etc/pihole/custom.list"
 ```
 
-### ERROR: Pi-hole API nicht erreichbar
+### ERROR: custom.list nicht gefunden
 
 ```bash
-# Teste Netzwerk-Verbindung
-ping 192.168.1.7
+# Prüfe Pi-hole Installation
+ssh root@192.168.1.7 "ls -la /etc/pihole/"
 
-# Teste HTTP-Zugriff
-curl http://192.168.1.7/admin/api.php?status
-
-# Prüfe ob Pi-hole läuft
-ssh root@192.168.1.7 "systemctl status pihole-FTL"
+# custom.list sollte existieren
+# Falls nicht: Pi-hole ist nicht korrekt installiert
 ```
 
 ### DNS-Record wird nicht aufgelöst
@@ -148,18 +148,20 @@ Logs werden geschrieben nach:
 
 ## Security
 
-⚠️ **API-Token schützen:**
-- NIEMALS in Git committen
-- Nur via Environment-Variable
-- Alternativ: `/opt/openclaw/.env` verwenden
+⚠️ **SSH-Key schützen:**
+- Private Key nur auf OpenClaw-Container
+- Nicht in Git committen
+- Regelmäßig rotieren
 
 ✅ **Best Practice:**
 ```bash
-# In /opt/openclaw/.env
-PIHOLE_API_TOKEN="your-token-here"
+# SSH-Key mit Passphrase
+ssh-keygen -t ed25519 -C "openclaw-pihole"
 
-# In systemd Service-File
-EnvironmentFile=/opt/openclaw/.env
+# Nur Public Key zu Pi-hole kopieren
+ssh-copy-id root@192.168.1.7
+
+# Private Key bleibt auf 192.168.1.11
 ```
 
 ## Version

@@ -90,10 +90,10 @@ echo
 echo "✓ Deployment erfolgreich!"
 echo
 echo "Nächste Schritte:"
-echo "1. Pi-hole API-Token setzen:"
+echo "1. SSH-Zugriff zu Pi-hole einrichten:"
 echo "   ssh ${OPENCLAW_USER}@${OPENCLAW_HOST}"
-echo "   echo 'export PIHOLE_API_TOKEN=\"your-token-here\"' >> /root/.bashrc"
-echo "   source /root/.bashrc"
+echo "   ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519"
+echo "   ssh-copy-id root@192.168.1.7"
 echo
 echo "2. Skill testen:"
 echo "   ssh ${OPENCLAW_USER}@${OPENCLAW_HOST} '${REMOTE_SKILL_DIR}/pihole-dns-manager.sh test'"

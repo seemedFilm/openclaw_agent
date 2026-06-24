@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Pi-hole API Library
+# Pi-hole DNS Manager Library
 # ============================================================================
-# Purpose: Wrapper für Pi-hole API-Calls
+# Purpose: DNS-Management via SSH (Pi-hole v5/v6 kompatibel)
 # ============================================================================
 
 # Lade Config
@@ -16,81 +16,69 @@ get_config_value() {
 }
 
 PIHOLE_HOST=$(get_config_value "host")
-PIHOLE_API_ENDPOINT=$(get_config_value "api_endpoint")
-PIHOLE_API_TOKEN_ENV=$(get_config_value "api_token_env")
+PIHOLE_SSH_USER=$(get_config_value "ssh_user")
+PIHOLE_CUSTOM_LIST=$(get_config_value "custom_list")
 TRAEFIK_IP=$(get_config_value "traefik_ip")
-API_TIMEOUT=$(get_config_value "api_request")
+ACCESS_METHOD=$(get_config_value "access_method")
 
-# Hole API-Token aus Environment oder Config
-if [[ -n "${!PIHOLE_API_TOKEN_ENV}" ]]; then
-    PIHOLE_API_TOKEN="${!PIHOLE_API_TOKEN_ENV}"
-else
-    PIHOLE_API_TOKEN=$(get_config_value "api_token")
-fi
+# Default values
+PIHOLE_SSH_USER="${PIHOLE_SSH_USER:-root}"
+PIHOLE_CUSTOM_LIST="${PIHOLE_CUSTOM_LIST:-/etc/pihole/custom.list}"
+ACCESS_METHOD="${ACCESS_METHOD:-ssh}"
 
-# Validierung
-if [[ -z "$PIHOLE_API_TOKEN" ]]; then
-    echo "ERROR: Pi-hole API Token nicht gefunden!" >&2
-    echo "       Setze Environment-Variable: export ${PIHOLE_API_TOKEN_ENV}=<token>" >&2
-    exit 1
-fi
-
-# Füge DNS-Record hinzu
+# Füge DNS-Record hinzu (via SSH)
 pihole_add_dns_record() {
     local domain="$1"
     local ip="$2"
 
     echo "   Füge DNS-Record hinzu: ${domain} → ${ip}"
 
-    local url="${PIHOLE_API_ENDPOINT}?customdns&action=add&domain=${domain}&ip=${ip}&token=${PIHOLE_API_TOKEN}"
+    # Prüfe ob Record bereits existiert
+    if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "grep -q '^${ip} ${domain}$' ${PIHOLE_CUSTOM_LIST} 2>/dev/null"; then
+        echo "   ⚠ DNS-Record existiert bereits"
+        return 0  # Nicht als Fehler werten
+    fi
 
-    local response
-    response=$(curl -sSf --max-time "$API_TIMEOUT" "$url" 2>&1)
-    local exit_code=$?
-
-    if [[ $exit_code -eq 0 ]]; then
-        # Prüfe Response
-        if echo "$response" | grep -q '"success".*true'; then
+    # Füge Record hinzu
+    if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "echo '${ip} ${domain}' >> ${PIHOLE_CUSTOM_LIST}" 2>/dev/null; then
+        # Reload DNS
+        if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "pihole restartdns reload" >/dev/null 2>&1; then
             echo "   ✓ DNS-Record erfolgreich hinzugefügt"
             return 0
-        elif echo "$response" | grep -q "already exists"; then
-            echo "   ⚠ DNS-Record existiert bereits"
-            return 0  # Nicht als Fehler werten
         else
-            echo "   ERROR: Unerwartete API-Response: $response" >&2
+            echo "   ERROR: DNS-Reload fehlgeschlagen" >&2
             return 1
         fi
     else
-        echo "   ERROR: Pi-hole API nicht erreichbar (Exit: $exit_code)" >&2
+        echo "   ERROR: Konnte DNS-Record nicht schreiben" >&2
         return 1
     fi
 }
 
-# Entferne DNS-Record
+# Entferne DNS-Record (via SSH)
 pihole_remove_dns_record() {
     local domain="$1"
 
     echo "   Entferne DNS-Record: ${domain}"
 
-    local url="${PIHOLE_API_ENDPOINT}?customdns&action=delete&domain=${domain}&token=${PIHOLE_API_TOKEN}"
+    # Prüfe ob Record existiert
+    if ! ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "grep -q ' ${domain}$' ${PIHOLE_CUSTOM_LIST} 2>/dev/null"; then
+        echo "   ⚠ DNS-Record existiert nicht"
+        return 0  # Nicht als Fehler werten
+    fi
 
-    local response
-    response=$(curl -sSf --max-time "$API_TIMEOUT" "$url" 2>&1)
-    local exit_code=$?
-
-    if [[ $exit_code -eq 0 ]]; then
-        if echo "$response" | grep -q '"success".*true'; then
+    # Entferne Record (alle Zeilen mit diesem Domain)
+    if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "sed -i '/ ${domain}$/d' ${PIHOLE_CUSTOM_LIST}" 2>/dev/null; then
+        # Reload DNS
+        if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "pihole restartdns reload" >/dev/null 2>&1; then
             echo "   ✓ DNS-Record erfolgreich entfernt"
             return 0
-        elif echo "$response" | grep -q "does not exist"; then
-            echo "   ⚠ DNS-Record existiert nicht"
-            return 0  # Nicht als Fehler werten
         else
-            echo "   ERROR: Unerwartete API-Response: $response" >&2
+            echo "   ERROR: DNS-Reload fehlgeschlagen" >&2
             return 1
         fi
     else
-        echo "   ERROR: Pi-hole API nicht erreichbar (Exit: $exit_code)" >&2
+        echo "   ERROR: Konnte DNS-Record nicht entfernen" >&2
         return 1
     fi
 }
@@ -99,20 +87,21 @@ pihole_remove_dns_record() {
 pihole_list_dns_records() {
     echo "📋 Pi-hole Custom DNS Records:"
 
-    local url="${PIHOLE_API_ENDPOINT}?customdns&action=get&token=${PIHOLE_API_TOKEN}"
-
-    local response
-    response=$(curl -sSf --max-time "$API_TIMEOUT" "$url" 2>&1)
+    local records
+    records=$(ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "cat ${PIHOLE_CUSTOM_LIST} 2>/dev/null" 2>&1)
     local exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
-        # Parse JSON (einfaches grep/sed - für komplexere Parsing jq verwenden)
-        echo "$response" | grep -o '"[^"]*"' | sed 's/"//g' | while read -r line; do
-            echo "  $line"
-        done
+        if [[ -z "$records" ]]; then
+            echo "  (keine Custom-DNS-Records vorhanden)"
+        else
+            echo "$records" | while read -r ip domain; do
+                [[ -n "$ip" && -n "$domain" ]] && echo "  ${domain} → ${ip}"
+            done
+        fi
         return 0
     else
-        echo "ERROR: Pi-hole API nicht erreichbar (Exit: $exit_code)" >&2
+        echo "ERROR: Konnte DNS-Records nicht lesen (Exit: $exit_code)" >&2
         return 1
     fi
 }
@@ -121,39 +110,49 @@ pihole_list_dns_records() {
 pihole_check_dns_record() {
     local domain="$1"
 
-    local url="${PIHOLE_API_ENDPOINT}?customdns&action=get&token=${PIHOLE_API_TOKEN}"
-
-    local response
-    response=$(curl -sSf --max-time "$API_TIMEOUT" "$url" 2>&1)
-
-    if echo "$response" | grep -q "$domain"; then
+    if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "grep -q ' ${domain}$' ${PIHOLE_CUSTOM_LIST} 2>/dev/null"; then
         return 0  # Existiert
     else
         return 1  # Existiert nicht
     fi
 }
 
-# Teste Pi-hole API-Verbindung
+# Teste Pi-hole SSH-Verbindung
 pihole_test_connection() {
-    echo "🔗 Teste Pi-hole API-Verbindung..."
+    echo "🔗 Teste Pi-hole SSH-Verbindung..."
     echo "   Host: ${PIHOLE_HOST}"
-    echo "   Endpoint: ${PIHOLE_API_ENDPOINT}"
+    echo "   User: ${PIHOLE_SSH_USER}"
+    echo "   Custom-List: ${PIHOLE_CUSTOM_LIST}"
+    echo "   Methode: ${ACCESS_METHOD}"
 
-    local url="${PIHOLE_API_ENDPOINT}?status&token=${PIHOLE_API_TOKEN}"
-
-    local response
-    response=$(curl -sSf --max-time "$API_TIMEOUT" "$url" 2>&1)
-    local exit_code=$?
-
-    if [[ $exit_code -eq 0 ]]; then
-        echo "   ✓ Pi-hole API erreichbar"
-        echo "   Response: $response"
-        return 0
-    else
-        echo "   ✗ Pi-hole API nicht erreichbar (Exit: $exit_code)" >&2
-        echo "   Error: $response" >&2
+    # Test SSH-Verbindung
+    if ! ssh -T -o ConnectTimeout=5 "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "true" 2>/dev/null; then
+        echo "   ✗ SSH-Verbindung fehlgeschlagen" >&2
+        echo "   Tipp: ssh-copy-id ${PIHOLE_SSH_USER}@${PIHOLE_HOST}" >&2
         return 1
     fi
+    echo "   ✓ SSH-Verbindung OK"
+
+    # Test custom.list Zugriff
+    if ! ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "test -f ${PIHOLE_CUSTOM_LIST}" 2>/dev/null; then
+        echo "   ✗ ${PIHOLE_CUSTOM_LIST} nicht gefunden" >&2
+        return 1
+    fi
+    echo "   ✓ custom.list zugreifbar"
+
+    # Test pihole Command
+    if ! ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "which pihole" >/dev/null 2>&1; then
+        echo "   ✗ pihole Command nicht gefunden" >&2
+        return 1
+    fi
+    echo "   ✓ pihole Command verfügbar"
+
+    # Zeige Pi-hole Version
+    local version
+    version=$(ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "pihole -v 2>/dev/null | head -1" 2>&1)
+    echo "   Version: ${version}"
+
+    return 0
 }
 
 # Export Funktionen
