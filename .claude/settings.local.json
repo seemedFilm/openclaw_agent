@@ -39,7 +39,8 @@
       "Bash(tar czf *)",
       "Bash(scp /tmp/cert-manager.tar.gz root@192.168.1.11:/tmp/)",
       "Bash(scp -r * root@192.168.1.11:/opt/openclaw/skills/cert-manager/)",
-      "Bash(scp config/settings.yaml root@192.168.1.11:/opt/openclaw/skills/cert-manager/config/)"
+      "Bash(scp config/settings.yaml root@192.168.1.11:/opt/openclaw/skills/cert-manager/config/)",
+      "Bash(git checkout *)"
     ]
   }
 }
