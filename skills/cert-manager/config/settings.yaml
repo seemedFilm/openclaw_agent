@@ -9,7 +9,7 @@ certificate:
     user: "root"
     script_path: "/root/create-cert.sh"
     output_path: "/srv/pki"
-    ssh_key: "/root/.ssh/cert_manager"
+    ssh_key: "/root/.ssh/id_ed25519"  # Verwende gleichen Key wie für Pi-hole
     default_validity_days: 365
 
   letsencrypt:
@@ -21,7 +21,7 @@ certificate:
 traefik:
   host: "192.168.1.23"
   user: "root"
-  ssh_key: "/root/.ssh/cert_manager"
+  ssh_key: "/root/.ssh/id_ed25519"  # Verwende gleichen Key wie für Pi-hole
   container_name: "traefik"
 
 # Auto-Renewal
