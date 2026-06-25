@@ -42,7 +42,7 @@ pihole_add_dns_record() {
     # Füge Record hinzu
     if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "echo '${ip} ${domain}' >> ${PIHOLE_CUSTOM_LIST}" 2>/dev/null; then
         # Reload DNS
-        if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "pihole restartdns reload" >/dev/null 2>&1; then
+        if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "pihole reloaddns" >/dev/null 2>&1; then
             echo "   ✓ DNS-Record erfolgreich hinzugefügt"
             return 0
         else
@@ -70,7 +70,7 @@ pihole_remove_dns_record() {
     # Entferne Record (alle Zeilen mit diesem Domain)
     if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "sed -i '/ ${domain}$/d' ${PIHOLE_CUSTOM_LIST}" 2>/dev/null; then
         # Reload DNS
-        if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "pihole restartdns reload" >/dev/null 2>&1; then
+        if ssh -T "${PIHOLE_SSH_USER}@${PIHOLE_HOST}" "pihole reloaddns" >/dev/null 2>&1; then
             echo "   ✓ DNS-Record erfolgreich entfernt"
             return 0
         else

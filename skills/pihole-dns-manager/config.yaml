@@ -14,7 +14,7 @@ pihole:
   # SSH-Key wird automatisch verwendet (~/.ssh/id_rsa oder ~/.ssh/id_ed25519)
 
   # Config-Dateien (für SSH-Zugriff)
-  custom_list: "/etc/pihole/custom.list"
+  custom_list: "/etc/pihole/hosts/custom.list"  # Pi-hole v6 Pfad
 
   # API-Zugriff (nur für Pi-hole v5, deprecated in v6)
   api_endpoint: "http://192.168.1.7/admin/api.php"
