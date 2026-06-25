@@ -51,40 +51,59 @@ class CertificateManager:
         conn.close()
 
     def _ssh_execute(self, host: str, user: str, key_path: str, command: str, need_pty: bool = False) -> Tuple[str, str, int]:
-        """Führe SSH-Befehl aus"""
+        """Führe SSH-Befehl aus via subprocess (zuverlässiger als paramiko)"""
         import re
 
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        # Verwende subprocess mit ssh command statt paramiko
+        # Grund: paramiko hat Probleme mit Key-Formaten und Permissions
+        ssh_command = [
+            'ssh',
+            '-i', key_path,
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', 'BatchMode=yes',
+            '-T',  # Disable PTY allocation
+            f'{user}@{host}',
+            command
+        ]
 
         try:
-            ssh.connect(
-                hostname=host,
-                username=user,
-                key_filename=key_path,
-                timeout=30
+            result = subprocess.run(
+                ssh_command,
+                stdin=subprocess.PIPE,
+                capture_output=True,
+                text=True,
+                timeout=60
             )
 
-            # Für step-ca: Wrapping mit 'cat' um PTY-Requirement zu umgehen
-            if need_pty:
-                # Führe Befehl mit explizitem Exit aus und pipe durch cat
-                command = f"bash -c '{command}' </dev/null 2>&1 || true"
-
-            stdin, stdout, stderr = ssh.exec_command(command, get_pty=False)
-
-            stdout_text = stdout.read().decode('utf-8', errors='ignore')
-            stderr_text = stderr.read().decode('utf-8', errors='ignore')
-            exit_code = stdout.channel.recv_exit_status()
+            stdout_text = result.stdout
+            stderr_text = result.stderr
+            exit_code = result.returncode
 
             # Entferne ANSI-Color-Codes
             ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
             stdout_text = ansi_escape.sub('', stdout_text)
             stderr_text = ansi_escape.sub('', stderr_text)
 
+            # Filtere SSH-Warnings aus stderr
+            stderr_lines = stderr_text.split('\n')
+            filtered_stderr = []
+            for line in stderr_lines:
+                if not any(warning in line for warning in [
+                    'Warning: Permanently added',
+                    'Warning: Identity file',
+                    'Pseudo-terminal will not be allocated'
+                ]):
+                    filtered_stderr.append(line)
+            stderr_text = '\n'.join(filtered_stderr).strip()
+
             return stdout_text, stderr_text, exit_code
 
-        finally:
-            ssh.close()
+        except subprocess.TimeoutExpired:
+            raise Exception(f"SSH-Command timeout nach 60s")
+        except FileNotFoundError:
+            raise Exception(f"SSH-Key nicht gefunden: {key_path}")
+        except Exception as e:
+            raise Exception(f"SSH-Verbindung fehlgeschlagen: {str(e)}")
 
     def create_certificate(self, hostname: str, cert_type: str,
                           backend_ip: Optional[str] = None,
@@ -691,62 +710,82 @@ class CertificateManager:
 
     def _create_traefik_service(self, hostname: str, backend_ip: str, user: str):
         """
-        Erstelle Traefik-Service via traefik-service-manager Skill
+        Erstelle Traefik-Config direkt (Zertifikat wurde bereits von cert-manager erstellt)
 
         Args:
             hostname: Service-Hostname
             backend_ip: Backend-Server URL (z.B. https://192.168.1.50:8080)
             user: User der die Aktion ausführt
         """
-        traefik_manager_script = BASE_DIR.parent / "traefik-service-manager" / "traefik-service-manager.sh"
+        traefik_config = self.config.get('traefik', {})
 
-        if not traefik_manager_script.exists():
-            self._log_audit(
-                action="create_traefik_service",
-                hostname=hostname,
-                user=user,
-                status="failed",
-                message="traefik-service-manager Script nicht gefunden",
-                details={"expected_path": str(traefik_manager_script)}
-            )
-            raise Exception(f"traefik-service-manager Script nicht gefunden: {traefik_manager_script}")
+        if not traefik_config:
+            raise Exception("Traefik-Konfiguration fehlt in settings.yaml")
 
-        # Führe traefik-service-manager aus
-        command = [
-            str(traefik_manager_script),
-            "add",
-            "--hostname", hostname,
-            "--backend", backend_ip
-        ]
+        traefik_host = traefik_config['host']
+        traefik_user = traefik_config['user']
+        traefik_ssh_key = traefik_config['ssh_key']
+        traefik_config_path = traefik_config.get('config_path', '/docker/volume/traefik/dynamic')
+
+        # Bestimme Zertifikats-Pfade (wurden bereits von step-ca erstellt)
+        hostname_short = hostname.replace('.internal', '')
+        cert_path = f"/srv/pki/{hostname_short}/fullchain.crt"
+        key_path = f"/srv/pki/{hostname_short}/{hostname_short}.key"
+
+        # Erstelle Traefik-Config YAML
+        config_yaml = f"""http:
+  routers:
+    {hostname_short}:
+      rule: "Host(`{hostname}`)"
+      entryPoints:
+        - websecure
+      service: {hostname_short}
+      tls:
+        certResolver: internal
+        domains:
+          - main: "{hostname}"
+
+  services:
+    {hostname_short}:
+      loadBalancer:
+        servers:
+          - url: "{backend_ip}"
+"""
+
+        # Schreibe Config auf Traefik-Server
+        config_file = f"{traefik_config_path}/{hostname_short}.yml"
+        command = f"cat > {config_file} <<'EOF'\n{config_yaml}\nEOF"
 
         try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=120
+            stdout, stderr, exit_code = self._ssh_execute(
+                host=traefik_host,
+                user=traefik_user,
+                key_path=traefik_ssh_key,
+                command=command
             )
 
-            if result.returncode != 0:
-                error_msg = result.stderr if result.stderr else result.stdout
+            if exit_code != 0:
+                error_msg = stderr if stderr else stdout
                 self._log_audit(
                     action="create_traefik_service",
                     hostname=hostname,
                     user=user,
                     status="failed",
-                    message=f"traefik-service-manager fehlgeschlagen: {error_msg}",
-                    details={"backend_ip": backend_ip, "command": " ".join(command)}
+                    message=f"Traefik-Config konnte nicht erstellt werden: {error_msg}",
+                    details={"backend_ip": backend_ip}
                 )
-                raise Exception(f"Traefik-Service konnte nicht erstellt werden: {error_msg}")
+                raise Exception(f"Traefik-Config konnte nicht erstellt werden: {error_msg}")
 
-            # Erfolgreich
+            # Traefik Container neustarten um Config zu laden
+            self._restart_traefik()
+
             self._log_audit(
                 action="create_traefik_service",
                 hostname=hostname,
                 user=user,
                 status="success",
-                message="Traefik-Service erfolgreich erstellt",
-                details={"backend_ip": backend_ip}
+                message=f"Traefik-Service erstellt: https://{hostname} → {backend_ip}",
+                details={"backend_ip": backend_ip, "config_file": config_file}
             )
 
         except subprocess.TimeoutExpired:
