@@ -283,17 +283,17 @@ journalctl -xe
 - [x] Ops-Agent Definition (.claude.md)
 - [x] Agent-Testing (Password-Checker ✅, Code-Review ✅)
 
-### ✅ Phase 3: Skills (In Arbeit - 2/3 fertig)
+### ✅ Phase 3: Skills (Abgeschlossen)
 - [x] **Traefik Service Manager Skill** - Automatisches Service Management mit Zertifikatserstellung
   - Externe Services mit Let's Encrypt
   - Interne Services mit step-ca Zertifikaten
   - Automatische Config-Generierung und Deployment
-- [x] **Cert-Manager Skill** - Web-Interface für Zertifikatsverwaltung
-  - Web-Dashboard (https://certs.internal)
-  - REST API für OpenClaw-Integration
+- [x] **Cert-Manager Skill** - **MIGRIERT ZU EIGENSTÄNDIGEM PROJEKT**
+  - **Neues Projekt:** [CertFlow v2.0.0](https://github.com/seemedFilm/certflow)
+  - Web-Dashboard + REST API
   - Dual Sources: step-ca + Let's Encrypt
   - Auto-Renewal & Audit-Logging
-- [ ] Monitoring & Alerting Skill
+  - Pi-hole DNS Integration (v6 kompatibel)
 
 ### ⏳ Phase 4: Integration (Geplant)
 - [ ] Traefik Docker-Integration

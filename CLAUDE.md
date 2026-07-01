@@ -10,22 +10,25 @@ OpenClaw Multi-Agent System für Proxmox - Automatisiertes Certificate Managemen
 - Container: 192.168.1.11 (openclaw-agents)
 - **OpenClaw Agents sind NICHT deployed** - Dokumentation nur als Konzept
 - **Skills sind die tatsächliche Implementierung**
+- **WICHTIG:** cert-manager ist jetzt eigenständiges Projekt → [CertFlow](https://github.com/seemedFilm/certflow)
 
 ## Architecture
 
 ### Skills-basierte Automation (statt Agents)
 
-Das System verwendet **Skills** (Bash/Python-Scripts), keine KI-Agents:
+Das System verwendet **Skills** (Bash/Python-Scripts), keine KI-Agents.
 
-```
-User → Web-UI → cert-manager → step-ca → traefik → pi-hole → DNS Record
-```
+**WICHTIG:** Das cert-manager Skill wurde zu einem eigenständigen Produkt migriert:
+- **Neues Projekt:** [CertFlow v2.0.0](https://github.com/seemedFilm/certflow)
+- **Deployed als:** `/opt/certflow/` (parallel zu `/opt/openclaw/`)
+- **Services:** `certflow-api`, `certflow-web`, `certflow-renewal`
+- **Ports:** 5000 (Web), 5001 (API)
 
-**Kritische Skills:**
-1. **cert-manager** (192.168.1.11:5000/5001)
+**Kritische Skills (jetzt in CertFlow):**
+1. **certflow** (192.168.1.11:5000/5001) - **[Eigenständiges Projekt](https://github.com/seemedFilm/certflow)**
    - Web-UI (Flask) + REST API (FastAPI)
-   - Python: `skills/cert-manager/lib/certificate_manager.py`
-   - Orchestriert alle anderen Skills
+   - Python: `certflow/lib/certificate_manager.py`
+   - Orchestriert Traefik + Pi-hole Integration
 
 2. **traefik-service-manager** (192.168.1.23)
    - Bash-Script für Traefik Reverse Proxy Config
@@ -66,11 +69,13 @@ DNS-Eintrag in Pi-hole (192.168.1.7)
 
 ### Skills deployen
 
+**HINWEIS:** cert-manager ist jetzt CertFlow - siehe [certflow Repository](https://github.com/seemedFilm/certflow)
+
 ```bash
-# Cert-Manager deployen
-cd skills/cert-manager
-scp -r api/ web/ lib/ root@192.168.1.11:/opt/openclaw/skills/cert-manager/
-ssh root@192.168.1.11 "systemctl restart cert-manager-api cert-manager-web"
+# CertFlow deployen (neues eigenständiges Projekt)
+cd /path/to/certflow
+export CERTFLOW_HOST="192.168.1.11"
+bash deploy.sh
 
 # Pi-hole DNS Manager deployen
 cd skills/pihole-dns-manager
@@ -85,13 +90,13 @@ bash deploy-skill.sh 192.168.1.11
 
 ```bash
 # Status prüfen (auf 192.168.1.11)
-ssh root@192.168.1.11 "systemctl status cert-manager-api cert-manager-web cert-manager-renewal"
+ssh root@192.168.1.11 "systemctl status certflow-api certflow-web certflow-renewal"
 
 # Logs ansehen
-ssh root@192.168.1.11 "journalctl -u cert-manager-api -f"
+ssh root@192.168.1.11 "journalctl -u certflow-api -f"
 
 # Services neustarten nach Code-Änderungen
-ssh root@192.168.1.11 "systemctl restart cert-manager-api cert-manager-web"
+ssh root@192.168.1.11 "systemctl restart certflow-api certflow-web"
 ```
 
 ### Testen
